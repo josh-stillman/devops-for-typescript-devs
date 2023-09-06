@@ -112,9 +112,39 @@ const cdn = new aws.cloudfront.Distribution('cdn', {
   },
 });
 
-const zone = aws.route53.getZoneOutput({ name: domain });
+const allowCDNAccessToBucket = aws.iam.getPolicyDocumentOutput({
+  statements: [
+    {
+      principals: [
+        {
+          type: 'Service',
+          identifiers: ['cloudfront.amazonaws.com'],
+        },
+      ],
+      actions: ['s3:GetObject', 's3:ListBucket'],
+      resources: [bucket.arn, pulumi.interpolate`${bucket.arn}/*`],
+      conditions: [
+        {
+          test: 'StringEquals',
+          values: ['AWS:SourceArn'],
+          variable: cdn.arn,
+        },
+      ],
+    },
+  ],
+});
+
+const allowAccessFromAnotherAccountBucketPolicy = new aws.s3.BucketPolicy(
+  'allowAccessFromAnotherAccountBucketPolicy',
+  {
+    bucket: bucket.id,
+    policy: allowCDNAccessToBucket.apply(policy => policy.json),
+  }
+);
 
 // Create a DNS A record to point to the CDN for the subdomain.
+const zone = aws.route53.getZoneOutput({ name: domain });
+
 const record = new aws.route53.Record(domainName, {
   name: subdomain,
   zoneId: zone.zoneId,
