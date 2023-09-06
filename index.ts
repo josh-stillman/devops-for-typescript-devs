@@ -30,7 +30,10 @@ const ownershipControls = new aws.s3.BucketOwnershipControls("ownership-controls
 // Configure public ACL block on the new S3 bucket
 const publicAccessBlock = new aws.s3.BucketPublicAccessBlock("public-access-block", {
     bucket: bucket.bucket,
-    blockPublicAcls: false,
+    blockPublicAcls: true, // block all direct access with these settings
+    blockPublicPolicy: true,
+    ignorePublicAcls: true,
+    restrictPublicBuckets: true,
 });
 
 // Use a synced folder to manage the files of the website.
