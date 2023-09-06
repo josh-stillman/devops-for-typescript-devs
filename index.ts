@@ -126,8 +126,8 @@ const allowCDNAccessToBucket = aws.iam.getPolicyDocumentOutput({
       conditions: [
         {
           test: 'StringEquals',
-          values: ['AWS:SourceArn'],
-          variable: cdn.arn,
+          values: [pulumi.output(cdn).apply(c => c.arn)],
+          variable: 'AWS:SourceArn',
         },
       ],
     },
