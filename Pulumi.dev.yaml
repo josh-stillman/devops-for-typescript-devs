@@ -1,0 +1,5 @@
+config:
+  aws:region: us-east-1
+  code-along:errorDocument: error.html
+  code-along:indexDocument: index.html
+  code-along:path: ./www
