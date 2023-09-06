@@ -7,6 +7,9 @@ const config = new pulumi.Config();
 const path = config.get("path") || "./www";
 const indexDocument = config.get("indexDocument") || "index.html";
 const errorDocument = config.get("errorDocument") || "error.html";
+const domain = config.require("domain");
+const subdomain = config.require("subdomain");
+const domainName = `${subdomain}.${domain}`;
 
 // Create an S3 bucket and configure it as a website.
 const bucket = new aws.s3.Bucket("bucket", {
@@ -36,6 +39,13 @@ const bucketFolder = new synced_folder.S3BucketFolder("bucket-folder", {
     bucketName: bucket.bucket,
     acl: "public-read",
 }, { dependsOn: [ownershipControls, publicAccessBlock]});
+
+// Get existing Certificate from ACM
+const certificate = aws.acm.getCertificate({
+    domain,
+    mostRecent: true,
+    types: ["AMAZON_ISSUED"],
+});
 
 // Create a CloudFront CDN to distribute and cache the website.
 const cdn = new aws.cloudfront.Distribution("cdn", {
@@ -84,9 +94,30 @@ const cdn = new aws.cloudfront.Distribution("cdn", {
             restrictionType: "none",
         },
     },
+    aliases: [
+        domainName,
+    ],
     viewerCertificate: {
-        cloudfrontDefaultCertificate: true,
+        cloudfrontDefaultCertificate: false,
+        acmCertificateArn: pulumi.output(certificate).apply(c => c.arn),
+        sslSupportMethod: "sni-only",
     },
+});
+
+const zone = aws.route53.getZoneOutput({ name: domain });
+
+// Create a DNS A record to point to the CDN for the subdomain.
+const record = new aws.route53.Record(domainName, {
+    name: subdomain,
+    zoneId: zone.zoneId,
+    type: "A",
+    aliases: [
+        {
+            name: cdn.domainName,
+            zoneId: cdn.hostedZoneId,
+            evaluateTargetHealth: true,
+        }
+    ],
 });
 
 // Export the URLs and hostnames of the bucket and distribution.
@@ -94,3 +125,4 @@ export const originURL = pulumi.interpolate`http://${bucket.websiteEndpoint}`;
 export const originHostname = bucket.websiteEndpoint;
 export const cdnURL = pulumi.interpolate`https://${cdn.domainName}`;
 export const cdnHostname = cdn.domainName;
+export const domainURL = `https://${domainName}`;
