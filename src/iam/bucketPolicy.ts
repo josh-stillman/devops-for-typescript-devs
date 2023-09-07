@@ -3,6 +3,7 @@ import * as aws from '@pulumi/aws';
 import { Bucket } from '@pulumi/aws/s3';
 import { Distribution } from '@pulumi/aws/cloudfront';
 import { User } from '@pulumi/aws/iam';
+import { getARN } from '../utils/getARN';
 
 export const createBucketPolicyJSON = ({
   bucket,
@@ -27,7 +28,7 @@ export const createBucketPolicyJSON = ({
         conditions: [
           {
             test: 'StringEquals',
-            values: [pulumi.output(distribution).apply(c => c.arn)],
+            values: [getARN(distribution)],
             variable: 'AWS:SourceArn',
           },
         ],
@@ -36,7 +37,7 @@ export const createBucketPolicyJSON = ({
         principals: [
           {
             type: 'AWS',
-            identifiers: [pulumi.output(pipelineUser).apply(u => u.arn)],
+            identifiers: [getARN(pipelineUser)],
           },
         ],
         actions: ['s3:PutObject', 's3:ListBucket', 's3:DeleteObject'],

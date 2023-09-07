@@ -3,6 +3,7 @@ import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
 import { createFrontendPipelineUser } from './src/iam/pipelineUser';
 import { createBucketPolicyJSON } from './src/iam/bucketPolicy';
+import { getARN } from './src/utils/getARN';
 
 // Import the program's configuration settings.
 const config = new pulumi.Config();
@@ -97,7 +98,7 @@ const cdn = new aws.cloudfront.Distribution('cdn', {
   aliases: [domainName],
   viewerCertificate: {
     cloudfrontDefaultCertificate: false,
-    acmCertificateArn: pulumi.output(certificate).apply(c => c.arn),
+    acmCertificateArn: getARN(certificate),
     sslSupportMethod: 'sni-only', // avoiding extra charges
   },
 });
