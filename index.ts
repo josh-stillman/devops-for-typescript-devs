@@ -43,17 +43,6 @@ const publicAccessBlock = new aws.s3.BucketPublicAccessBlock(
   }
 );
 
-// Use a synced folder to manage the files of the website.
-const bucketFolder = new synced_folder.S3BucketFolder(
-  'bucket-folder',
-  {
-    path: path,
-    bucketName: bucket.bucket,
-    acl: 'public-read',
-  },
-  { dependsOn: [ownershipControls, publicAccessBlock] }
-);
-
 // Get existing Certificate from ACM
 const certificate = aws.acm.getCertificate({
   domain,
