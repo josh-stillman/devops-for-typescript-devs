@@ -14,10 +14,7 @@ const domainName = `${subdomain}.${domain}`;
 
 // Create an S3 bucket and configure it as a website.
 const bucket = new aws.s3.Bucket('bucket', {
-  website: {
-    indexDocument: indexDocument,
-    errorDocument: errorDocument,
-  },
+  bucket: 'dev.jss.computer', // prepended to pulumi's auto-generated name
 });
 
 // Configure ownership controls for the new S3 bucket
@@ -50,21 +47,24 @@ const certificate = aws.acm.getCertificate({
   types: ['AMAZON_ISSUED'],
 });
 
+const OAC = new aws.cloudfront.OriginAccessControl('example', {
+  description: 'OAC for CDN to access bucket',
+  originAccessControlOriginType: 's3',
+  signingBehavior: 'always',
+  signingProtocol: 'sigv4',
+});
+
 // Create a CloudFront CDN to distribute and cache the website.
 const cdn = new aws.cloudfront.Distribution('cdn', {
   enabled: true,
   origins: [
     {
       originId: bucket.arn,
-      domainName: bucket.websiteEndpoint,
-      customOriginConfig: {
-        originProtocolPolicy: 'http-only',
-        httpPort: 80,
-        httpsPort: 443,
-        originSslProtocols: ['TLSv1.2'],
-      },
+      domainName: bucket.bucketDomainName,
+      originAccessControlId: OAC.id,
     },
   ],
+
   defaultCacheBehavior: {
     targetOriginId: bucket.arn,
     viewerProtocolPolicy: 'redirect-to-https',
@@ -81,6 +81,7 @@ const cdn = new aws.cloudfront.Distribution('cdn', {
     },
   },
   priceClass: 'PriceClass_100',
+  defaultRootObject: 'index.html',
   customErrorResponses: [
     {
       errorCode: 404,
