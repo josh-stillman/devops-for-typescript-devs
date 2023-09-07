@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
-import * as synced_folder from '@pulumi/synced-folder';
+import { createFrontendPipelineUser } from './src/iam/pipelineUser';
+import { createBucketPolicyJSON } from './src/iam/bucketPolicy';
 
 // Import the program's configuration settings.
 const config = new pulumi.Config();
@@ -64,7 +65,6 @@ const cdn = new aws.cloudfront.Distribution('cdn', {
       originAccessControlId: OAC.id,
     },
   ],
-
   defaultCacheBehavior: {
     targetOriginId: bucket.arn,
     viewerProtocolPolicy: 'redirect-to-https',
@@ -98,37 +98,25 @@ const cdn = new aws.cloudfront.Distribution('cdn', {
   viewerCertificate: {
     cloudfrontDefaultCertificate: false,
     acmCertificateArn: pulumi.output(certificate).apply(c => c.arn),
-    sslSupportMethod: 'sni-only',
+    sslSupportMethod: 'sni-only', // avoiding extra charges
   },
 });
 
-const allowCDNAccessToBucket = aws.iam.getPolicyDocumentOutput({
-  statements: [
-    {
-      principals: [
-        {
-          type: 'Service',
-          identifiers: ['cloudfront.amazonaws.com'],
-        },
-      ],
-      actions: ['s3:GetObject', 's3:ListBucket'],
-      resources: [bucket.arn, pulumi.interpolate`${bucket.arn}/*`],
-      conditions: [
-        {
-          test: 'StringEquals',
-          values: [pulumi.output(cdn).apply(c => c.arn)],
-          variable: 'AWS:SourceArn',
-        },
-      ],
-    },
-  ],
+// Create CI-CD User
+
+const pipelineUser = createFrontendPipelineUser(bucket, cdn);
+
+const bucketPolicyJSON = createBucketPolicyJSON({
+  bucket,
+  distribution: cdn,
+  pipelineUser,
 });
 
-const allowAccessFromAnotherAccountBucketPolicy = new aws.s3.BucketPolicy(
-  'allowAccessFromAnotherAccountBucketPolicy',
+const attachedBucketPolicy = new aws.s3.BucketPolicy(
+  'bucketPolicyForCloudfrontAndPipelineAccess',
   {
     bucket: bucket.id,
-    policy: allowCDNAccessToBucket.apply(policy => policy.json),
+    policy: bucketPolicyJSON.apply(policy => policy.json),
   }
 );
 
