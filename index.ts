@@ -4,6 +4,7 @@ import * as aws from '@pulumi/aws';
 import { createFrontendPipelineUser } from './src/iam/pipelineUser';
 import { createBucketPolicyJSON } from './src/iam/bucketPolicy';
 import { getARN } from './src/utils/getARN';
+import { requestRewriterLambda } from './src/lambda@edge/requestRewriter';
 
 // Import the program's configuration settings.
 const config = new pulumi.Config();
@@ -80,6 +81,13 @@ const cdn = new aws.cloudfront.Distribution('cdn', {
         forward: 'all',
       },
     },
+    // Include a Lambda to rewrite origin requests including a '+' to using '%2B' since S3 interprets '+' incorrectly
+    lambdaFunctionAssociations: [
+      {
+        eventType: 'origin-request',
+        lambdaArn: requestRewriterLambda.qualifiedArn,
+      },
+    ],
   },
   priceClass: 'PriceClass_100',
   defaultRootObject: 'index.html',
