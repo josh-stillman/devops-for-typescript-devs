@@ -6,6 +6,8 @@ import { createBucketPolicyJSON } from './src/iam/bucketPolicy';
 import { getARN } from './src/utils/getARN';
 import { requestRewriterLambda } from './src/lambda@edge/requestRewriter';
 
+export { backendUrl } from './src/backend/backend';
+
 // Import the program's configuration settings.
 const config = new pulumi.Config();
 const path = config.get('path') || './www';

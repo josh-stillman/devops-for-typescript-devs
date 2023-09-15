@@ -3,5 +3,10 @@ config:
   code-along:domain: jss.computer
   code-along:errorDocument: 404.html
   code-along:indexDocument: index.html
+  code-along:namespace: api
   code-along:path: ./www
   code-along:subdomain: dev
+  api:
+    port: 1337
+    # cpu: 1024
+    # memory: 2048
