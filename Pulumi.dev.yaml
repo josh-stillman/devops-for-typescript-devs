@@ -7,6 +7,6 @@ config:
   code-along:path: ./www
   code-along:subdomain: dev
   api:
-    port: 1337
+    containerPort: 1337
     # cpu: 1024
     # memory: 2048

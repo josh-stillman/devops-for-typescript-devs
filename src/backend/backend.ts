@@ -43,18 +43,18 @@ const secretVersion = new aws.secretsmanager.SecretVersion('dev', {
 });
 
 const taskDefinition = new awsx.ecs.FargateTaskDefinition('api-task-def', {
-    container: {
-      name: 'dev-backend-container',
-      image: image.imageUri,
-      cpu: cpu,
-      memory: memory,
-      essential: true,
-      portMappings: [
-        {
-          containerPort: containerPort,
-          targetGroup: loadBalancer.defaultTargetGroup,
-        },
-      ],
+  container: {
+    name: 'dev-backend-container',
+    image: image.imageUri,
+    cpu: cpu,
+    memory: memory,
+    essential: true,
+    portMappings: [
+      {
+        containerPort: containerPort,
+        targetGroup: loadBalancer.defaultTargetGroup,
+      },
+    ],
     secrets: Object.keys(BACKEND_SECRETS).map(secretName => ({
       name: secretName,
       valueFrom: pulumi.interpolate`${secretsManger.arn}:${secretName}::`,
@@ -88,6 +88,7 @@ const service = new awsx.ecs.FargateService('service', {
   taskDefinition: taskDefinition.taskDefinition.arn,
 });
 
+const user = createBackendPipelineUser(repo, taskDefinition.executionRole);
 
 // The URL at which the container's HTTP endpoint will be available
 export const backendUrl = pulumi.interpolate`http://${loadBalancer.loadBalancer.dnsName}`;
