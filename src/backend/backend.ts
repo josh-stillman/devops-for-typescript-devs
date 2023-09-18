@@ -1,6 +1,9 @@
 import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
 import * as awsx from '@pulumi/awsx';
+import { BACKEND_SECRETS } from './backendSecrets';
+import { Role } from '@pulumi/aws/iam';
+import { createBackendPipelineUser } from '../iam/pipelineUser';
 
 const config = new pulumi.Config('api');
 const containerPort = config.getNumber('containerPort') || 80;
@@ -33,11 +36,13 @@ const image = new awsx.ecr.Image('image', {
   path: './app',
 });
 
-// Deploy an ECS Service on Fargate to host the application container
-const service = new awsx.ecs.FargateService('service', {
-  cluster: cluster.arn,
-  assignPublicIp: true,
-  taskDefinitionArgs: {
+const secretsManger = new aws.secretsmanager.Secret('api-secrets');
+const secretVersion = new aws.secretsmanager.SecretVersion('dev', {
+  secretId: secretsManger.id,
+  secretString: JSON.stringify(BACKEND_SECRETS),
+});
+
+const taskDefinition = new awsx.ecs.FargateTaskDefinition('api-task-def', {
     container: {
       name: 'dev-backend-container',
       image: image.imageUri,
@@ -50,9 +55,39 @@ const service = new awsx.ecs.FargateService('service', {
           targetGroup: loadBalancer.defaultTargetGroup,
         },
       ],
-    },
+    secrets: Object.keys(BACKEND_SECRETS).map(secretName => ({
+      name: secretName,
+      valueFrom: pulumi.interpolate`${secretsManger.arn}:${secretName}::`,
+    })),
   },
 });
+
+const secretManagerPolicyDoc = aws.iam.getPolicyDocumentOutput({
+  statements: [
+    {
+      effect: 'Allow',
+      actions: ['secretsmanager:GetSecretValue'],
+      resources: [secretsManger.arn],
+    },
+  ],
+});
+
+const secretManagerPolicy = new aws.iam.Policy('secretsPolicy', {
+  policy: secretManagerPolicyDoc.apply(doc => doc.json),
+});
+
+const rpaSecrets = new aws.iam.RolePolicyAttachment('rpa-secrets', {
+  role: taskDefinition.executionRole as pulumi.Output<Role>,
+  policyArn: secretManagerPolicy.arn,
+});
+
+// Deploy an ECS Service on Fargate to host the application container
+const service = new awsx.ecs.FargateService('service', {
+  cluster: cluster.arn,
+  assignPublicIp: true,
+  taskDefinition: taskDefinition.taskDefinition.arn,
+});
+
 
 // The URL at which the container's HTTP endpoint will be available
 export const backendUrl = pulumi.interpolate`http://${loadBalancer.loadBalancer.dnsName}`;
