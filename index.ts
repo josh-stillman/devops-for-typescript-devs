@@ -5,8 +5,14 @@ import { createFrontendPipelineUser } from './src/iam/pipelineUser';
 import { createBucketPolicyJSON } from './src/iam/bucketPolicy';
 import { getARN } from './src/utils/getARN';
 import { requestRewriterLambda } from './src/lambda@edge/requestRewriter';
+import { getExistingCertificate } from './src/acm/getCertificate';
 
-export { backendUrl } from './src/backend/backend';
+export {
+  backendUrl,
+  repoName,
+  serviceName,
+  clusterName,
+} from './src/backend/backend';
 
 // Import the program's configuration settings.
 const config = new pulumi.Config();
@@ -46,11 +52,7 @@ const publicAccessBlock = new aws.s3.BucketPublicAccessBlock(
 );
 
 // Get existing Certificate from ACM
-const certificate = aws.acm.getCertificate({
-  domain,
-  mostRecent: true,
-  types: ['AMAZON_ISSUED'],
-});
+const certificate = getExistingCertificate(domain);
 
 const OAC = new aws.cloudfront.OriginAccessControl('example', {
   description: 'OAC for CDN to access bucket',

@@ -4,6 +4,16 @@ import * as awsx from '@pulumi/awsx';
 import { BACKEND_SECRETS } from './backendSecrets';
 import { Role } from '@pulumi/aws/iam';
 import { createBackendPipelineUser } from '../iam/pipelineUser';
+import { getExistingCertificate } from '../acm/getCertificate';
+import { getARN } from '../utils/getARN';
+
+const apiConfig = new pulumi.Config('api');
+const config = new pulumi.Config();
+
+const domain = config.get('domain') || 'jss.computer';
+const subdomain = 'api-' + (config.get('subdomain') || 'dev');
+const domainName = `${subdomain}.${domain}`;
+
 const containerPort = apiConfig.getNumber('containerPort') || 80;
 const containerName = apiConfig.get('containerName') || 'dev-backend-container';
 const cpu = apiConfig.getNumber('cpu') || 512;
@@ -50,6 +60,21 @@ const loadBalancer = new awsx.lb.ApplicationLoadBalancer('loadbalancer', {
       protocol: 'HTTP',
     },
   },
+});
+
+const zone = aws.route53.getZoneOutput({ name: domain });
+
+const record = new aws.route53.Record(domainName, {
+  name: subdomain,
+  zoneId: zone.zoneId,
+  type: 'A',
+  aliases: [
+    {
+      name: loadBalancer.loadBalancer.dnsName,
+      zoneId: loadBalancer.loadBalancer.zoneId,
+      evaluateTargetHealth: true,
+    },
+  ],
 });
 
 // An ECR repository to store our application's container image
@@ -139,3 +164,7 @@ const user = createBackendPipelineUser(
 
 // The URL at which the container's HTTP endpoint will be available
 export const backendUrl = pulumi.interpolate`http://${loadBalancer.loadBalancer.dnsName}`;
+
+export const repoName = repo.repository.name;
+export const serviceName = service.service.name;
+export const clusterName = cluster.name;

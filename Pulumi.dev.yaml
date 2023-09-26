@@ -6,7 +6,7 @@ config:
   code-along:namespace: api
   code-along:path: ./www
   code-along:subdomain: dev
-  api:
-    containerPort: 1337
+  api:containerPort: 1337
+  api:containerName: dev-backend-container
     # cpu: 1024
     # memory: 2048
