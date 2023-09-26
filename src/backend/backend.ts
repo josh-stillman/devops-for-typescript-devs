@@ -142,10 +142,34 @@ const rpaSecrets = new aws.iam.RolePolicyAttachment('rpa-secrets', {
   policyArn: secretManagerPolicy.arn,
 });
 
+const ecsSecurityGroup = new aws.ec2.SecurityGroup('ECSSecurityGroup', {
+  vpcId: vpc.vpcId,
+  ingress: [
+    {
+      fromPort: 1337,
+      toPort: 1337,
+      protocol: 'tcp',
+      // eslint-disable-next-line @typescript-eslint/no-non-null-asserted-optional-chain
+      securityGroups: [loadBalancer.defaultSecurityGroup.apply(sg => sg?.id!)],
+    },
+  ],
+  egress: [
+    {
+      fromPort: 0,
+      toPort: 0,
+      protocol: '-1',
+      cidrBlocks: ['0.0.0.0/0'],
+      ipv6CidrBlocks: ['::/0'],
+    },
+  ],
+});
+
+// Fetch the default VPC information from your AWS account:
+const vpc = new awsx.ec2.DefaultVpc('default-vpc');
+
 // Deploy an ECS Service on Fargate to host the application container
 const service = new awsx.ecs.FargateService('service', {
   cluster: cluster.arn,
-  assignPublicIp: true,
   taskDefinition: taskDefinition.taskDefinition.arn,
   loadBalancers: [
     {
@@ -154,6 +178,11 @@ const service = new awsx.ecs.FargateService('service', {
       targetGroupArn: loadBalancer.defaultTargetGroup.arn,
     },
   ],
+  networkConfiguration: {
+    assignPublicIp: true,
+    subnets: vpc.publicSubnetIds,
+    securityGroups: [ecsSecurityGroup.id],
+  },
 });
 
 const user = createBackendPipelineUser(
