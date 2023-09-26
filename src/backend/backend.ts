@@ -66,10 +66,9 @@ const repo = new awsx.ecr.Repository('repo', {
   },
 });
 
-// Build and publish our application's container image from ./app to the ECR repository
-const image = new awsx.ecr.Image('image', {
-  repositoryUrl: repo.url,
-  path: './app',
+const image = aws.ecr.getImageOutput({
+  repositoryName: repo.repository.name,
+  mostRecent: true,
 });
 
 const secretsManger = new aws.secretsmanager.Secret('api-secrets');
@@ -80,8 +79,8 @@ const secretVersion = new aws.secretsmanager.SecretVersion('dev', {
 
 const taskDefinition = new awsx.ecs.FargateTaskDefinition('api-task-def', {
   container: {
-    name: 'dev-backend-container',
-    image: image.imageUri,
+    name: containerName,
+    image: pulumi.interpolate`${repo.url}:${image.imageTags[0]}`,
     cpu: cpu,
     memory: memory,
     essential: true,
