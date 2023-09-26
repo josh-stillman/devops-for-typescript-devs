@@ -40,7 +40,8 @@ export const createFrontendPipelineUser = (
 
 export const createBackendPipelineUser = (
   repository: Repository,
-  taskExecutionRole: Output<Role | undefined>
+  taskExecutionRole: Output<Role | undefined>,
+  taskRole: Output<Role | undefined>
 ) => {
   if (!taskExecutionRole) {
     console.error('missing task execution role for creating pipeline user');
@@ -51,41 +52,38 @@ export const createBackendPipelineUser = (
     statements: [
       {
         actions: [
-          'ecr:GetAuthorizationToken',
           'ecr:BatchCheckLayerAvailability',
-          'ecr:GetDownloadUrlForLayer',
-          'ecr:GetRepositoryPolicy',
-          'ecr:DescribeRepositories',
-          'ecr:ListImages',
-          'ecr:DescribeImages',
           'ecr:BatchGetImage',
+          'ecr:CompleteLayerUpload',
+          'ecr:DescribeImageScanFindings',
+          'ecr:DescribeImages',
+          'ecr:DescribeRepositories',
+          'ecr:GetDownloadUrlForLayer',
           'ecr:GetLifecyclePolicy',
           'ecr:GetLifecyclePolicyPreview',
-          'ecr:ListTagsForResource',
-          'ecr:DescribeImageScanFindings',
+          'ecr:GetRepositoryPolicy',
           'ecr:InitiateLayerUpload',
-          'ecr:UploadLayerPart',
-          'ecr:CompleteLayerUpload',
+          'ecr:ListImages',
+          'ecr:ListTagsForResource',
           'ecr:PutImage',
+          'ecr:UploadLayerPart',
         ],
         resources: [repository.repository.arn],
       },
       {
         actions: [
+          'ecs:DescribeServices',
+          'ecs:UpdateService',
           'ecr:GetAuthorizationToken',
           'ecs:RegisterTaskDefinition',
           'ecs:ListTaskDefinitions',
           'ecs:DescribeTaskDefinition',
         ],
-        resources: ['*'],
+        resources: ['*'], // add service arn
       },
       {
-        actions: ['iam:PassRole'],
-        resources: [getARN(taskExecutionRole)],
-      },
-      {
-        actions: ['sts:AssumeRole'],
-        resources: [getARN(taskExecutionRole)],
+        actions: ['iam:PassRole', 'sts:AssumeRole'],
+        resources: [getARN(taskExecutionRole), getARN(taskRole)],
       },
     ],
   });

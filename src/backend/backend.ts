@@ -88,7 +88,11 @@ const service = new awsx.ecs.FargateService('service', {
   taskDefinition: taskDefinition.taskDefinition.arn,
 });
 
-const user = createBackendPipelineUser(repo, taskDefinition.executionRole);
+const user = createBackendPipelineUser(
+  repo,
+  taskDefinition.executionRole,
+  taskDefinition.taskRole
+);
 
 // The URL at which the container's HTTP endpoint will be available
 export const backendUrl = pulumi.interpolate`http://${loadBalancer.loadBalancer.dnsName}`;
