@@ -91,7 +91,7 @@ const repo = new awsx.ecr.Repository('repo', {
   },
 });
 
-const image = aws.ecr.getImageOutput({
+const existingImage = aws.ecr.getImageOutput({
   repositoryName: repo.repository.name,
   mostRecent: true,
 });
@@ -105,7 +105,7 @@ const secretVersion = new aws.secretsmanager.SecretVersion('dev', {
 const taskDefinition = new awsx.ecs.FargateTaskDefinition('api-task-def', {
   container: {
     name: containerName,
-    image: pulumi.interpolate`${repo.url}:${image.imageTags[0]}`,
+    image: pulumi.interpolate`${repo.url}:${existingImage.imageTags[0]}`,
     cpu: cpu,
     memory: memory,
     essential: true,
@@ -142,9 +142,13 @@ const rpaSecrets = new aws.iam.RolePolicyAttachment('rpa-secrets', {
   policyArn: secretManagerPolicy.arn,
 });
 
+// Fetch the default VPC information from your AWS account:
+const vpc = new awsx.ec2.DefaultVpc('default-vpc');
+
 const ecsSecurityGroup = new aws.ec2.SecurityGroup('ECSSecurityGroup', {
   vpcId: vpc.vpcId,
   ingress: [
+    // allow incoming traffic on 1337 from our loadbalancer
     {
       fromPort: 1337,
       toPort: 1337,
@@ -154,6 +158,7 @@ const ecsSecurityGroup = new aws.ec2.SecurityGroup('ECSSecurityGroup', {
     },
   ],
   egress: [
+    // allow all outgoing traffic
     {
       fromPort: 0,
       toPort: 0,
@@ -163,9 +168,6 @@ const ecsSecurityGroup = new aws.ec2.SecurityGroup('ECSSecurityGroup', {
     },
   ],
 });
-
-// Fetch the default VPC information from your AWS account:
-const vpc = new awsx.ec2.DefaultVpc('default-vpc');
 
 // Deploy an ECS Service on Fargate to host the application container
 const service = new awsx.ecs.FargateService('service', {

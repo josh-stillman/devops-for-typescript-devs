@@ -3,7 +3,6 @@ config:
   code-along:domain: jss.computer
   code-along:errorDocument: 404.html
   code-along:indexDocument: index.html
-  code-along:namespace: api
   code-along:path: ./www
   code-along:subdomain: dev
   api:containerPort: 1337

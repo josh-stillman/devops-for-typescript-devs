@@ -79,7 +79,7 @@ export const createBackendPipelineUser = (
           'ecs:ListTaskDefinitions',
           'ecs:DescribeTaskDefinition',
         ],
-        resources: ['*'], // add service arn
+        resources: ['*'], // TODO: add service arn
       },
       {
         actions: ['iam:PassRole', 'sts:AssumeRole'],
