@@ -171,6 +171,7 @@ const ecsSecurityGroup = new aws.ec2.SecurityGroup('ECSSecurityGroup', {
 
 // Deploy an ECS Service on Fargate to host the application container
 const service = new awsx.ecs.FargateService('service', {
+  // desiredCount: 0, //  use this line to turn the service on/off
   cluster: cluster.arn,
   taskDefinition: taskDefinition.taskDefinition.arn,
   loadBalancers: [
