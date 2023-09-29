@@ -5,3 +5,7 @@ config:
   code-along:indexDocument: index.html
   code-along:path: ./www
   code-along:subdomain: dev
+  api:containerPort: 1337
+  api:containerName: dev-backend-container
+    # cpu: 1024
+    # memory: 2048
