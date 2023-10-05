@@ -35,6 +35,7 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
   - [Upload our frontend assets](#upload-our-frontend-assets)
   - [Enable Static Website Hosting](#enable-static-website-hosting)
 - [Setup the AWS CLI](#setup-the-aws-cli)
+- [Setup Route 53](#setup-route-53)
 
 
 # Introduction
@@ -297,6 +298,7 @@ Go to [Route 53](https://us-east-1.console.aws.amazon.com/route53/v2/home#Dashbo
 - Register a domain name for the course.  We're doing this first so that it has time to propagate by the time we need it.
 - The cheapest ones seem to be about $12.
 - I went with `jss.computer`, one of few sites with my initials available.
+- Make sure privacy protection is on (the default) or your info will be public.
 
 # Upload our frontend build directory to s3
 
@@ -383,6 +385,20 @@ Let's take a minute to set up the AWS CLI.  It's useful for all kinds of things,
   - Select JSON for output.
 - Give it a try!  Run this command with your bucket name to list the files in it. `aws s3 ls s3://jss.computer`.
 
+# Setup Route 53
+
+Let's point our domain name to our s3 bucket.
+
+- Go to route 53 → Click Hosted Zone → click your zone → click create record.
+
+![create DNS record](assets/create-dns-record.png)
+
+- Hit the Alias toggle.
+- Choose alias to s3 website endpoint.
+- Choose us-east-1.
+- Auto-fill the endpoint from the drop-down.
+- Click create record.
+- Go to your url (on http) and test it out!  (You may need to wait a little bit for the changes to propagate).
 
 
 
