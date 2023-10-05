@@ -14,6 +14,12 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
     - [Principle of Least Privilege](#principle-of-least-privilege)
     - [Tradeoffs and Cost](#tradeoffs-and-cost)
   - [Game Plan](#game-plan)
+- [Build the Frontend Locally](#build-the-frontend-locally)
+  - [Why Next.js](#why-nextjs)
+  - [Create Next project](#create-next-project)
+    - [Setup your project and GitHub Repository](#setup-your-project-and-github-repository)
+    - [Create your first route](#create-your-first-route)
+    - [Build a static site for production](#build-a-static-site-for-production)
 
 
 # Introduction
@@ -56,7 +62,7 @@ Our application might not look like much, but there's a ton of complexity involv
 
 ### Frontend
 
-- Requests come in from the browser to our domain (for me, https://jss.computer 😆). Route 53 routes those requests to our CloudFront Distribution.
+- Requests come in from the browser to our domain (for me, https://jss.computer  - a dev site that was available using my initials 😆). Route 53 routes those requests to our CloudFront Distribution.
   - Requests are served via https, using a TLS certificate provisioned in ACM.
 - Cloudfront globally distributes and caches our app for faster load times around the world.
 - A Lambda@Edge Function is used to route requests correctly to our HTML files.
@@ -96,22 +102,101 @@ Every decision in DevOps comes with tradeoffs, often involving cost.  We can spe
 
 I'll try to keep us within the AWS free tier as much as possible here, but doing so entirely is very difficult (see this meme).  You can tear down your resources when we're done to limit the damage.  I left my Fargate services and load balancers up all month (both outside the free tier) and was billed about $40 last month 😬.
 
-![Alt text](assets/aws-free-tier-meme.png)
+![AWS Free Tier Meme](assets/aws-free-tier-meme.png)
 
 ## Game Plan
 
 Here's the game plan:
 
 - Setup a first environment (production) with the AWS console.
-  - Build our Frontend locally with Next and set up our GitHub repo.
+  - Build our frontend locally with Next and set up our GitHub repo.
   - Set up our AWS account.
-  - Deploy our Frontend through the AWS console.
-  - Setup our Frontend CI/CD pipeline.
-  - Build our Backend locally with Strapi and Docker, and set up our GitHub repo.
-  - Deploy our Backend through the AWS console.
-  - Setup our Backend CI/CD pipeline.
+  - Deploy our frontend through the AWS console.
+  - Setup our frontend CI/CD pipeline.
+  - Build our backend locally with Strapi and Docker, and set up our GitHub repo.
+  - Deploy our backend through the AWS console.
+  - Setup our backend CI/CD pipeline.
 - Setup a second environment (development) with Pulumi.
-  - Frontend
-  - Backend
+  - frontend
+  - backend
   - Multiple environments in our GitHub repos.
+
+# Build the Frontend Locally
+
+Let's start with building our frontend so we have something to deploy!
+
+## Why Next.js
+
+We'll be using Next.js to build our frontend, which is a framework built on top of React that provides things like routing and server-side-rendering out-of-the-box.  The official React docs recommend using a framework like Next.js for production applications, and it is becoming broadly adopted by the React community.
+
+Compared to vanilla React app with create-react-app, Next provides much greater control over how your application is rendered.  Vanilla React is rendered on the client--only an empty HTML file is sent to the browser, the React app attaches to an empty div, and renders the entire application with JavaScript.  This poses challenges for SEO, since web crawlers may not render the JavaScript when indexing your site.  It also can lead to slower page loads for users.
+
+> The body of a vanilla React app's `index.html` is just:
+> ```html
+>  <body>
+>    <noscript>You need to enable JavaScript to run this app.</noscript>
+>    <div id="root"></div>
+> </body>
+> ```
+> ... Not very informative to web crawlers that might not execute JavaScript!
+
+Next allows much more granular control over where and when your application and its components are rendered.  You can statically render pages to HTML at build time when the content changes infrequently.  You can server-render pages at request time if content changes frequently and things like SEO and fast page-loads are still important (think of e-commerce sites).  And you can also client-render pages and components for dynamic or interactive content, though Next encourages you to client-render as little as possible.
+
+To avoid setting up a server for our frontend, we'll primarily statically-render our site to HTML at build time, and reap all the SEO and performance benefits.  But we'll also load frequently changing data from our news feed in a client-rendered component by fetching data from our backend, so our site will always be up-to-date.  Our app will be built as static assets, just like a vanilla React site, so that we can serve it globally on a CDN for fast loads world-wide.
+
+Check out the excellent [Next docs ](https://nextjs.org/) for a deeper dive on these concepts.  To go even deeper, Josh Comeau's [The Joy of React](https://www.joyofreact.com/) course also has some excellent Next content.
+
+## Create Next project
+
+### Setup your project and GitHub Repository
+
+- Run `npx create-next-app@latest` to bootstrap the app.
+- Setup linting and auto-format on save.  Shameless plug for my [lintier](https://github.com/josh-stillman/lintier) npm package, which will do it for you!
+  - Run `npx lintier` in the project directory, and don't install airbnb's style guide for now.
+  - Turn on auto formatting on save in your VS Code settings.json file, by adding `"editor.codeActionsOnSave": { "source.fixAll": true },`
+  - Fix the linting errors in the boilerplate Next starter with `npm run lint:fix`.
+- Add your first git commit, and create a [new GitHub repo](https://github.com/new).  Follow the instructions to add the git remote and push up.
+
+
+### Create your first route
+
+Next provides file-based routing out of the box.  We create new routes and pages by creating new subdirectories in the Next `/app` directory, containing a file named `page.tsx`.  So if we want to create a new page at `/foo`, we add a this new directory and file: `app/foo/page.tsx`.
+
+We're going to create one additional route, so we can learn how to deploy an app with multiple routes. One of the main challenges in getting our frontend deployed comes in handling routing correctly, as we'll see.
+
+- Add the new directory and file: `app/foo/page.tsx`.  It can just say hello world for now.
+    ```typescript
+    export default function Foo() {
+        return <h1>hello world from the foo page!</h1>;
+    }
+    ```
+- On your root page (at `app/page.tsx`), add a link to your new page.  Next's `Link` component handles client-side routing and provides a SPA-like experience, similar to a vanilla React app with React Router.
+    ```typescript
+    <Link href="/foo">go to foo page!</Link>
+    ```
+
+### Build a static site for production
+
+We need to let Next know that we want to build a static site, rather than host our app on a server.  This limits the functionality we have access to (like SSR, of course), but it allows for easier, more lightweight deployment and hosting.  We'll just be uploading static HTML, CSS, and JS assets to a server, where they can be served quickly and cheaply by a CDN, with little effort on our part.
+
+- Setup [static exports](https://nextjs.org/docs/app/building-your-application/deploying/static-exports) in `next.config.js` by adding
+    ```typescript
+    const nextConfig = {
+        output: 'export',
+    };
+
+    ```
+- Run `npm run build`.  The output shows which files were statically generated with ` ○ (Static)`.
+- Checkout the `./out` directory with our built files.  You'll see that, instead of the single empty html file we'd get with a vanilla React App, we get two html files that contain all the content.  This is what enables search engines to easily crawl our site and provides for quick page loads (more specifically, a fast [First Contentful Paint](https://web.dev/fcp/)).
+    ```html
+    <body class="__className_20951f">
+        <h1>hello world from the foo page!</h1>
+        ...
+    </body>
+    ```
+- Run the production build of your app by adding and running this script in your `package.json`: `"serve-static": "npx serve ./out",`
+
+
+
+
 
