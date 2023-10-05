@@ -36,6 +36,7 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
   - [Enable Static Website Hosting](#enable-static-website-hosting)
 - [Setup the AWS CLI](#setup-the-aws-cli)
 - [Setup Route 53](#setup-route-53)
+- [Setup https](#setup-https)
 
 
 # Introduction
@@ -399,6 +400,27 @@ Let's point our domain name to our s3 bucket.
 - Auto-fill the endpoint from the drop-down.
 - Click create record.
 - Go to your url (on http) and test it out!  (You may need to wait a little bit for the changes to propagate).
+
+# Setup https
+
+Now, let's serve our site securely with https.  For that, we'll need a TLS certificate that authenticates our site.  We can provision one in the [Amazon Certificate Manager (ACM)](https://us-east-1.console.aws.amazon.com/acm/home?region=us-east-1#/welcome).
+
+- Go to AWS Certificate Manager, and MAKE SURE you’re in us-east-1.  Only those certificates can be used with CloudFront.
+- Click request certificate → request public certificate.
+  - Add both the main domain name and a wildcard in Fully Qualified Name.  This will let us use this certificate for our main site as well as our subdomains (like our backend url).
+  - For example, both `jss.computer` and `*.jss.computer`.
+- Click request certificate.
+
+![ACM](assets/acm.png)
+
+- Click the blue banner saying further action needed.
+- Under domains, click "create record in Route 53."  This record proves to the certificate authority that you do in fact own the domain.
+
+https won't work with our s3 bucket just yet.  We'll have to setup CloudFront first.
+
+
+
+
 
 
 
