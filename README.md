@@ -21,6 +21,7 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
     - [Create your first route](#create-your-first-route)
     - [Build a static site for production](#build-a-static-site-for-production)
 - [Setup your AWS account](#setup-your-aws-account)
+  - [A note on AWS Regions](#a-note-on-aws-regions)
   - [Sign up](#sign-up)
   - [Setup billing alerts](#setup-billing-alerts)
   - [Create account alias](#create-account-alias)
@@ -33,6 +34,7 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
   - [Add a bucket policy allowing access](#add-a-bucket-policy-allowing-access)
   - [Upload our frontend assets](#upload-our-frontend-assets)
   - [Enable Static Website Hosting](#enable-static-website-hosting)
+- [Setup the AWS CLI](#setup-the-aws-cli)
 
 
 # Introduction
@@ -100,7 +102,7 @@ You could do this course with any of the major cloud providers, and Pulumi allow
 
 ### Principle of Least Privilege
 
-I said we'll be light on theory, but one overriding principle you'll see in the diagram above and throughout the course is the Principle of Least Privilege.  For security purposes, we want to provide the bare minimum of access to accomplish our goals.  If we lose control of an access key to a hacker, we want to limit the blast radius. And hackers will exploit open ports and publicly accessible resources, so we want to lock our resources down as much as possible.  Some examples:
+I said we'll be light on theory, but one overriding principle you'll see in the diagram above and throughout the course is the [Principle of Least Privilege](https://www.techtarget.com/searchsecurity/definition/principle-of-least-privilege-POLP).  For security purposes, we want to provide the bare minimum of access to accomplish our goals.  If we lose control of an access key to a hacker, we want to limit the blast radius. And hackers will exploit open ports and publicly accessible resources, so we want to lock our resources down as much as possible.  Some examples:
 
 - When we create an access key for our CI/CD pipeline, we don't want to let it mess with every resource in our account--we want to limit it to only the necessary actions to get the job done, only on the individual resources it needs access to, and only in one environment.
 - We don't want to use our root user (used for billing) to do our general admin tasks like creating resources, so we create an admin user with more limited privileges.
@@ -220,6 +222,12 @@ Setting up an AWS account is a bit more complex than you might think. We'll need
 - create an Admin user and setup MFA.
 
 We'll only use our root user for things like billing.  Any creation of cloud resources will be done with our Admin user instead, who will have most privileges aside from billing.  This is a security best practice and limits the damage that could be done if our Admin credentials were compromised.
+
+## A note on AWS Regions
+
+AWS has many "regions" around the world in which your cloud infrastructure can live (these correspond to physical data centers).  There are a few things that *must* be in us-east-1 in North Virgina, like CloudFront distributions and TLS certificates.  To make our lives easier, we'll use us-east-1 for everything.
+
+If for some reason you don't see your resources, make sure the us-east-1 region is selected in the dropdown.
 
 ## Sign up
 
@@ -361,6 +369,19 @@ This is what AWS permission policy JSON docs look like.  They specify *who* can 
 Kick the tires a bit here.  You'll see that linking between our pages works.  But refreshing at `/foo` doesn't work, and we get the 404 page (we'll fix this).  Try going to a nonexistent page and you should correctly see the 404 page.
 
 Cool!  We've got a website up, but there are a lot of improvements left.  We're on http instead of https, and our browser says our site isn't secure.  The url is pretty gross.  We had to manually upload the files. And the files are only hosted in one AWS region rather than globally.  Let's fix all that!
+
+# Setup the AWS CLI
+
+Let's take a minute to set up the AWS CLI.  It's useful for all kinds of things, like listing the resources in our account.  And when we get to using Pulumi, we'll need to have the AWS CLI configured locally so Pulumi can manage our infrastructure for us.
+
+- Install the [AWS CLI](https://aws.amazon.com/cli/).
+- Generate an access token for your admin user. IAM → User → Security Credentials → Create Access Key.
+- Copy paste both public key and secret.  Keep them somewhere safe and secure.  You can only view these credentials once, so make sure.
+- In your terminal, run `aws configure`.
+  - Add your credentials.
+  - Select us-east-1.
+  - Select JSON for output.
+- Give it a try!  Run this command with your bucket name to list the files in it. `aws s3 ls s3://jss.computer`.
 
 
 
