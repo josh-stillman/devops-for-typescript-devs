@@ -51,6 +51,16 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
   - [Create Role](#create-role)
   - [Create Trigger](#create-trigger)
   - [Test it](#test-it)
+- [Frontend CI/CD pipeline](#frontend-cicd-pipeline)
+  - [Create Pipeline User](#create-pipeline-user)
+    - [Create Policy](#create-policy)
+    - [Create User](#create-user)
+    - [Create Access Key](#create-access-key)
+  - [Update s3 Bucket Policy](#update-s3-bucket-policy)
+  - [Create the GitHub Action](#create-the-github-action)
+    - [Add Secrets to GitHub Repo](#add-secrets-to-github-repo)
+    - [Push and Test](#push-and-test)
+  - [Summing up the Frontend](#summing-up-the-frontend)
 
 
 # Introduction
@@ -642,8 +652,183 @@ Now let's deploy the function to the edge.  On your function page, click the Add
 
 Cloudfront can take some time to deploy, which makes sense.  Give it a little time, then try refreshing at `/foo` and it should work!
 
+# Frontend CI/CD pipeline
 
+Next, let's stop uploading files directly from our computer!  We can setup a CI/CD pipeline in our GitHub repository using GitHub Actions.  When new code is pushed to our `main` branch, it will trigger the pipeline, which will build our code, upload the build to our s3 bucket, and create a CloudFront invalidation telling CloudFront to fetch the new version from the bucket.
 
+## Create Pipeline User
+
+The pipeline will need an AWS access key to use the AWS CLI to upload files to s3 and create the CloudFront invalidations.  We could use our Admin account, sure, but that would be super insecure.  What if someone gets access to our GitHub repo (which stores the keys)?  They'd have our Admin keys and could do almost *anything* 🙀.  Instead, we'll create a new user for the pipeline, and this user will only have the minimum permissions needed to accomplish the job.
+
+### Create Policy
+
+- Go to IAM.
+- Create Policy.  We'll attach this policy to our pipeline user.
+- It should look like this, with your resources:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "VisualEditor0",
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObject",
+                "s3:ListBucket",
+                "s3:DeleteObject",
+                "cloudfront:CreateInvalidation"
+            ],
+            "Resource": [
+                "arn:aws:s3:::jss.computer/*",
+                "arn:aws:cloudfront::225934246878:distribution/E2NYXH5S9T80Y5"
+            ]
+        }
+    ]
+}
+```
+
+**TODO** Is the resource /*?  Do you need ListBucket?  Check back on the Cloudfront policy, /* might be all that is needed.
+
+We want the pipeline to be able to add files to the bucket with the `aws s3 sync --delete` command, which requires `s3:PutObject`, `s3:ListBucket`, and `s3:DeleteObject`.  We're deleting the old files in the bucket so we start with a clean slate (what if there was a page at /baz that we end up removing in a new pull request -- we need to clear the bucket on each push or it will remain).
+
+We also need the user to be able to create invalidations on our CloudFront distribution with `cloudfront:CreateInvalidation`.
+
+We scope these permissions to the specific bucket and distribution for our environment.
+
+### Create User
+
+- Create a new user in IAM
+- Don't grant console access.
+- Attach the policy you just created to the user.
+
+### Create Access Key
+
+- Go to your user, then the Security Credentials tab.
+- Under Access Keys, hit the Create Access Key button.
+- Bypass the warnings.
+- Copy down the credentials and store them somewhere safe and secure.  You can only view them once!  We'll add these to GitHub in a minute.
+
+## Update s3 Bucket Policy
+
+AWS's [permissions evaluation model](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html) can be complex when multiple policies are in play, such as is the case here with an IAM user policy and an s3 bucket policy.  Generally one "Allow" would be enough to grant access in either an IAM or resource policy.  But here, we've configured a [public access block](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-control-block-public-access.html) on our bucket.  If we tried to upload to the bucket with our user, we'll get an error saying the bucket policy forbids it.  So, belt-and-suspenders style, we'll add permissions to our bucket policy that will allow our pipeline to work.
+
+- Go back to your s3 bucket's Permissions tab.
+- Click the Edit button on the bucket policy.
+- Within the "Statement" array, add another object like this, referencing your resources.
+
+```json
+{
+    "Effect": "Allow",
+    "Principal": {
+        "AWS": "arn:aws:iam::225934246878:user/FE-CI-CD-Pipeline"
+    },
+    "Action": [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:ListBucket",
+        "s3:DeleteObject"
+    ],
+    "Resource": [
+        "arn:aws:s3:::jss.computer/*",
+        "arn:aws:s3:::jss.computer"
+    ]
+}
+```
+
+## Create the GitHub Action
+
+In your frontend repo, create a new `.github` directory, with a `/workflows` subdirectory.  In `./github/workflows`, add a file called `build-deploy.yml`.
+
+We can adapt an action file from a couple starting points, including the [starter workflow for Next](https://github.com/actions/starter-workflows/blob/main/pages/nextjs.yml).
+
+Let's use this workflow:
+
+```yml
+name: Deploy Next.js site to AWS
+on:
+  # Runs on pushes targeting the default branch
+  push:
+    branches: ["main"]
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+concurrency:
+  group: "frontend"
+  cancel-in-progress: false
+
+jobs:
+  # Build job
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+          cache: "npm"
+      - name: Restore cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            .next/cache
+          # Generate a new cache whenever packages or source files change.
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
+          # If source files changed but packages didn't, rebuild from a prior cache.
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
+      - name: Install Modules
+        run: npm ci
+      - name: Build Application
+        run: npm run build
+      # Deploy to AWS
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Deploy to S3
+        run: aws s3 sync ./out s3://${{ secrets.BUCKET_NAME }} --delete
+      - name: Create Cloudfront Invalidation
+        run: aws cloudfront create-invalidation --distribution-id ${{ secrets.DISTRIBUTION_ID }} --paths "/*"
+```
+
+Here's what this workflow is doing:
+
+1. It will run on every push to `main`
+2. It checks out our code and installs Node.
+3. It sets up caching such that if our `package.json` hasn't changed, we won't have to re-download node modules from npm.
+4. It installs and builds our Next app with `npm ci` and `npm run build`.
+5. It configures our AWS credentials for our pipeline user so it can use the AWS CLI.
+6. It deletes the old files in our bucket and uploads the build directory (`./out`) to our s3 bucket.
+7. It creates a CloudFront invalidation for all paths on our site.
+
+Commit this file.  But before pushing it up, we need to add our secrets to our GitHub repo.
+
+### Add Secrets to GitHub Repo
+
+- In your GitHub repo, go to Settings -> Security -> Secrets and variables -> Actions
+- We need to add 4 variables:
+  - `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, which you copied and saved earlier.
+  - `BUCKET_NAME`.  You can get it from the console, or the CLI with `aws s3 ls`.  It should look like `jss.computer` (not an ARN).
+  - `DISTRIBUTION_ID`.  You can get it from the console, or the CLI with `aws cloudfront list-distributions`.  It should look like `E2NYXH5S9T80Y5` (also not an ARN).
+
+### Push and Test
+
+Make a change to your app so we can verify that our pipeline is working.
+
+- In `app/page.tsx`, add something new, commit, and push up.
+- Go to your GitHub repo and go to the Actions tab.
+- Verify that your action is running and succeeds.
+
+## Summing up the Frontend
+
+We've got a fully functional frontend environment now, complete with a working CI/CD pipeline!  Next up, let's extend our application with some backend functionality.
 
 
 
