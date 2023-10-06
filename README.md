@@ -46,6 +46,11 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
   - [Update Bucket Policy](#update-bucket-policy)
   - [Double-check behavior](#double-check-behavior)
   - [Seal off your bucket](#seal-off-your-bucket)
+- [Setup routing with Lambda@Edge Function](#setup-routing-with-lambdaedge-function)
+  - [Create Function](#create-function)
+  - [Create Role](#create-role)
+  - [Create Trigger](#create-trigger)
+  - [Test it](#test-it)
 
 
 # Introduction
@@ -542,6 +547,101 @@ The bucket still allows direct public access.  We want to seal it off and requir
 - Verify that you can still go to your domain through CloudFront.
 
 Major progress!
+
+# Setup routing with Lambda@Edge Function
+
+Let's fix the issue where reloading the page at `/foo` give us a 404.
+
+Why is it happening? If you go to https://jss.computer/foo, CloudFront is looking for a file in s3 called `foo`, not `foo.html`, and only the html file exists!  Solving this is more work than it should be, but it's a good introduction to Lambda@Edge.
+
+To fix this, we'll create a function that will intercept each CloudFront request.  If the request is for a path *without* a file extension, we'll append `.html` at the end, and then the request will be routed to our s3 bucket.  This allows us to correctly serve up these files while keeping our routing looking clean (the user doesn't see the file extension in the URL, as is typical on modern websites).
+
+[AWS Lambda](https://aws.amazon.com/lambda/) is a service that allows us to run serverless functions in JavaScript and other languages.  [Lambda@Edge](https://aws.amazon.com/lambda/edge/) allows you to run them on CloudFront's edge servers to do things like intercept and rewrite requests.
+
+If we were running our own servers, tasks like this would typically be handled by a [reverse proxy](https://www.nginx.com/resources/glossary/reverse-proxy-server/#:~:text=A%20reverse%20proxy%20server%20is,traffic%20between%20clients%20and%20servers.) like NGINX or Caddy.  But with CloudFront, these tasks are handled with Lambda@Edge.
+
+## Create Function
+
+First we need to create a function.
+
+- Go to Lambda.
+- Click Create Function
+- Add a name (such as add-html-extension)
+
+![create function](assets/create-function.png)
+
+We can use the web editor to write our function.  Here's what we need:
+
+```javascript
+'use strict';
+export const handler = (event, context, callback) => {
+
+    // Extract the request from the CloudFront event that is sent to Lambda@Edge
+    const request = event.Records[0].cf.request;
+
+    // Extract the URI from the request
+    const oldURI = request.uri;
+
+    // Match any route after the final slash without a file extension, and append .html
+    if (oldUri.match(/\/[^/.]+$/)) {
+      const newUri = oldUri + '.html';
+      request.uri = newUri;
+    }
+
+    // Return to CloudFront
+    return callback(null, request);
+};
+
+export default handler;
+```
+
+I know--DevOps for *Typescript Developers*.  Don't worry, we'll use TS when we start using Pulumi.
+
+Most of the heavy lifting here is done by the regex, `/\/[^/.]+$/`.  What it's doing is:
+
+- Looking for a trailing slash, then one or more characters that is *not* `/` or `.`, then the end of the URI string.
+- By doing this, we *exclude* requests for the root both with and without a trailing slash (https://jss.computer and https://jss.computer/), since CloudFront already knows to serve index.html as the root object.  And we exclude requests for files with extensions, like `/foo.svg`.  We also correctly handle nested routes like `/foo/bar`.
+- **TODO**: a final trailing slash won't work here!  Need to update to `/\/[^/.]+\/?$/`
+
+## Create Role
+
+We need to let CloudFront execute this function by letting it assume the Lambda's role.  Go to IAM, then Roles, then find the Role for your function.  It should have the same name as the function you created with some extra text (something like add-html-extension-role-dnrn2cz1).
+
+- Click the Trust Relationships tab, then the Edit trust policy button.
+- Under Principal, convert the Service key to an arrary and add the Lambda@Edge service.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+      {
+          "Effect": "Allow",
+          "Principal": {
+              "Service": [
+                  "lambda.amazonaws.com",
+                  "edgelambda.amazonaws.com"
+              ]
+          },
+          "Action": "sts:AssumeRole"
+      }
+  ]
+}
+```
+
+## Create Trigger
+
+Now let's deploy the function to the edge.  On your function page, click the Add Trigger button.
+
+- Select CloudFront
+- Click the Deploy to Lambda@Edge button
+- Select Origin Request.
+
+![deploy to lambda@edge](assets/deploy-to-lambda-edge.png)
+
+## Test it
+
+Cloudfront can take some time to deploy, which makes sense.  Give it a little time, then try refreshing at `/foo` and it should work!
+
 
 
 
