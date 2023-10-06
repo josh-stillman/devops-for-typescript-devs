@@ -61,6 +61,12 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
     - [Add Secrets to GitHub Repo](#add-secrets-to-github-repo)
     - [Push and Test](#push-and-test)
   - [Summing up the Frontend](#summing-up-the-frontend)
+- [Setup Strapi Locally](#setup-strapi-locally)
+  - [Bootstrap Strapi](#bootstrap-strapi)
+  - [Dockerize Strapi](#dockerize-strapi)
+    - [Create Dockerfile](#create-dockerfile)
+    - [Add Dockerignore](#add-dockerignore)
+    - [Test Docker Locally](#test-docker-locally)
 
 
 # Introduction
@@ -830,12 +836,111 @@ Make a change to your app so we can verify that our pipeline is working.
 
 We've got a fully functional frontend environment now, complete with a working CI/CD pipeline!  Next up, let's extend our application with some backend functionality.
 
+# Setup Strapi Locally
 
+To keep our backend simple we're going to use [Strapi](https://strapi.io/), a headless CMS.  Out of the box, Strapi will let us set up an admin user, log into an admin dashboard, add items to a collection, and serve those items as JSON via an API endpoint.  In production, Strapi would be a good choice when you need to let non-technical users edit frequently changing information, like a news feed.
 
+We'll use strapi to create a newsfeed.  Each item will just have a headline and a body and a publication date.  Then we'll display our newsfeed on our frontend.
 
+We can follow the [quickstart guide](https://docs.strapi.io/dev-docs/quick-start#_1-install-strapi-and-create-a-new-project).
 
+## Bootstrap Strapi
 
+- Run `npx create-strapi-app@latest code-along-api --quickstart --typescript`
+  - This creates a Strapi project with a sqlite database saved to the `/tmp/data.db` file.
+- Strapi starts at the signup page.  Create an account.
+- You now have access to the admin panel.
+- Click Create Content Type.
+- Name it NewsItem.
+- Add two text fields: Title (short text) and Body (long text).
+- Create a hello world NewsItem.
+- Allow public access to this collection.  Go to Settings → Roles → Public → News-item
+  - Select `find` and `findOne`, and save.
+- Test it out!  run `curl http://localhost:1337/api/news-items`, and you should see your news item!
 
+## Dockerize Strapi
+
+For deployment, we'll containerize Strapi with Docker.  Docker is an industry standard way to package our applications.  It allows us to create "containers" which hold not only our application code, but also let us specify the operating system and any additional system dependencies (like Node for instance) our application needs.  Then, our application can dependably be run on any machine that can run Docker, regardless of any other differences between machines.  It solves the "but it works on my machine!" problem for us!  And it allows us to quickly spin up multiple instances of our application for easy scalability.
+
+It also opens up some interesting possibilities for deploying our application without having to manage servers, which we'll explore later.
+
+Docker is a deep subject.  For more, take a look at the [docs](https://docs.docker.com/get-started/), or check out Brian Holt's excellent [Complete Intro To Containers](https://frontendmasters.com/courses/complete-intro-containers/) course on Frontend Masters.
+
+If you haven't already, install and start [Docker](https://docs.docker.com/desktop/install/mac-install/).
+
+### Create Dockerfile
+
+Add a file called `Dockerfile` in your Strapi root dir (no file extension).  We can mostly copy it from the [official sample](https://docs.strapi.io/dev-docs/installation/docker#production-dockerfile).  One important difference is the `FROM --platform=linux/amd64` which you will need if you are on an M1/M2 Macbook.
+
+```dockerfile
+# Creating multi-stage build for production
+FROM --platform=linux/amd64 node:18-alpine as build
+RUN apk update && apk add --no-cache build-base gcc autoconf automake zlib-dev libpng-dev vips-dev > /dev/null 2>&1
+ARG NODE_ENV=production
+ENV NODE_ENV=${NODE_ENV}
+
+WORKDIR /opt/
+COPY package.json package-lock.json ./
+RUN npm config set fetch-retry-maxtimeout 600000 -g && npm install --only=production
+ENV PATH /opt/node_modules/.bin:$PATH
+WORKDIR /opt/app
+COPY . .
+RUN npm run build
+
+# Creating final production image
+FROM --platform=linux/amd64 node:18-alpine
+RUN apk add --no-cache vips-dev
+ARG NODE_ENV=production
+ENV NODE_ENV=${NODE_ENV}
+WORKDIR /opt/
+COPY --from=build /opt/node_modules ./node_modules
+WORKDIR /opt/app
+COPY --from=build /opt/app ./
+ENV PATH /opt/node_modules/.bin:$PATH
+
+RUN chown -R node:node /opt/app
+USER node
+EXPOSE 1337
+CMD ["npm", "run", "start"]
+```
+At a high level, what's happening here is:
+
+- We're starting our build stage from a Docker image with Alpine Linux and Node installed already.  [Alpine Linux](https://www.alpinelinux.org/) is a lightweight Linux distribution.
+- We're installing some additional dependencies that Strapi needs to build the app.
+- Next, we're running `npm install`, followed by `npm run build`.
+  - The order is important here, as is the fact that this is done on two separate lines.  Docker evaluates whether it can use the last cached version of each step (called an image layer) line-by-line.  So if the dependencies don't change, this will let Docker skip re-downloading them, even if the code has changed.
+- Next, we create a new image for our final stage.  We copy over only what we need from the build stage.  And we install only what we need to *run* the app, not *build* the app, into this final stage.  This keeps our images smaller.
+- Finally, we're exposing port 1337 that Strapi will run on, and we run `npm run start` when the docker container starts, which starts Strapi.
+
+### Add Dockerignore
+
+We need to make sure not everything is copied into our image when this line is executed: `COPY . .`.  We don't want to copy over our node modules, which aren't compatible with Linux, as well as other unnecessary files.
+
+Add a `.dockerignore` at the top level of your Strapi project.
+
+```ignore
+# Keeping our local DB in place for now
+# .tmp/
+
+.cache/
+.git/
+build/
+node_modules/
+.env
+data/
+```
+
+Note that we're commenting out the line ignoring our .tmp directory holding our db file.  This will copy over our local db into our docker container for now.
+
+### Test Docker Locally
+
+- Run `docker build -t strapi-test .`  This builds your docker image.
+- Run `docker images ls` to verify your strapi-test image was built.
+- Run `docker run -rm -p 1337:1337 --env-file .env strapi-test`.  This runs our docker image on port 1337, using the environment variables in our `.env` file.
+- Run `curl http://localhost:1337/api/news-items` and you should see your news items.
+- Log into the admin dashboard at http://localhost:1337/admin.
+
+If you run into trouble logging into the admin dashboard, the latest Strapi version might be broken.  4.12.6 doesn’t work in production, so use 4.12.1 instead.
 
 
 
