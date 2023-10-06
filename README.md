@@ -35,8 +35,17 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
   - [Upload our frontend assets](#upload-our-frontend-assets)
   - [Enable Static Website Hosting](#enable-static-website-hosting)
 - [Setup the AWS CLI](#setup-the-aws-cli)
-- [Setup Route 53](#setup-route-53)
-- [Setup https](#setup-https)
+- [Setup Route 53 (DNS)](#setup-route-53-dns)
+- [Setup https with ACM](#setup-https-with-acm)
+- [Setup CloudFront (CDN)](#setup-cloudfront-cdn)
+  - [Create CloudFront Distribution](#create-cloudfront-distribution)
+    - [Origin and Origin Access Control](#origin-and-origin-access-control)
+    - [Default Cache Behavior and Web Application Firewall](#default-cache-behavior-and-web-application-firewall)
+    - [Settings](#settings)
+  - [Custom Error Response](#custom-error-response)
+  - [Update Bucket Policy](#update-bucket-policy)
+  - [Double-check behavior](#double-check-behavior)
+  - [Seal off your bucket](#seal-off-your-bucket)
 
 
 # Introduction
@@ -386,7 +395,7 @@ Let's take a minute to set up the AWS CLI.  It's useful for all kinds of things,
   - Select JSON for output.
 - Give it a try!  Run this command with your bucket name to list the files in it. `aws s3 ls s3://jss.computer`.
 
-# Setup Route 53
+# Setup Route 53 (DNS)
 
 Let's point our domain name to our s3 bucket.
 
@@ -401,7 +410,7 @@ Let's point our domain name to our s3 bucket.
 - Click create record.
 - Go to your url (on http) and test it out!  (You may need to wait a little bit for the changes to propagate).
 
-# Setup https
+# Setup https with ACM
 
 Now, let's serve our site securely with https.  For that, we'll need a TLS certificate that authenticates our site.  We can provision one in the [Amazon Certificate Manager (ACM)](https://us-east-1.console.aws.amazon.com/acm/home?region=us-east-1#/welcome).
 
@@ -417,6 +426,127 @@ Now, let's serve our site securely with https.  For that, we'll need a TLS certi
 - Under domains, click "create record in Route 53."  This record proves to the certificate authority that you do in fact own the domain.
 
 https won't work with our s3 bucket just yet.  We'll have to setup CloudFront first.
+
+# Setup CloudFront (CDN)
+
+CloudFront is a Content Delivery Network (CDN) that globally distributes our site for faster loads world-wide.  Right now our files are *only* hosted in Virginia.  If someone from Australia goes to our site, they are going to have a much longer load time than someone on the East Coast.
+
+We can solve this problem with a CDN, which will put copies of our files on many "edge servers" located around the world.  When the first user from Australia goes to our site, CloudFront will intercept the request, fetch it from Virginia, cache it on an edge server in Australia, and return it to that user.  When the *next* user from Australia goes to our site, the Australian edge server will have our assets and will return it much quicker!  CloudFront "uses a [global network](https://aws.amazon.com/cloudfront/features/?whats-new-cloudfront.sort-by=item.additionalFields.postDateTime&whats-new-cloudfront.sort-order=desc#Global_Edge_Network) of 550+ Points of Presence and 13 regional edge caches in 100+ cities across 50 countries."  I told you DevOps was powerful stuff!
+
+![CloudFront Edge Servers](assets/cloudfront.png)
+
+We'll create a CloudFront "distribution" to distribute our site.  Later, when we setup our CI/CD pipeline, we'll setup CloudFront "invalidations," which tell the edge servers to fetch the new assets from the "origin" server in Virgina (that is, our s3 bucket in us-east-1).
+
+## Create CloudFront Distribution
+
+- Go to CloudFront
+- Click Create Distribution
+
+### Origin and Origin Access Control
+
+- Choose your s3 Bucket under Origin Domain.  It will ask you to use the website endpoint, but don't click the button.  This will allow us to secure the origin later and only allow access through CloudFront.
+- Under Origin Access, select Origin Access Control (OAC), then click the Create control setting button.
+
+An OAC is a security measure that allows CloudFront to access a non-public bucket.  It does so through a custom Authorization header signed by CloudFront.  See [here](https://aws.amazon.com/blogs/networking-and-content-delivery/amazon-cloudfront-introduces-origin-access-control-oac/) for more.
+
+To use the OAC, we'll have to update our bucket policy after creating our distribution.
+
+![Origin settings](assets/cloudfront-distribution-origin.png)
+
+### Default Cache Behavior and Web Application Firewall
+
+- Keep all the defaults *except* choose "Redirect HTTP to HTTPS" so our site is only available on HTTPS.
+- Don't enable the WAF (it costs $).
+
+![Cache Behavior](assets/cloudfront-cache-behavior.png)
+
+### Settings
+
+- Under alternate domain names, enter both your domain and your domain with the www prefix: `jss.computer` and `www.jss.computer`.
+- Select your SSL certificate from the drop-down.  If you don't see it, you may have created it in the wrong region!
+- For the default root object, choose `index.html`.
+- Click Create distribution.
+
+![Settings](assets/cloudfront-settings.png)
+
+## Custom Error Response
+
+We need to tell CloudFront how to handle errors.  Go to your distribution, click the Error Pages tab, then Create custom error response.
+
+- Choose 404: Not found
+- Keep the default TTL.
+- Customize the error response to use `/404.html` and the 404 code.  Note the leading slash, which (confusingly) is required here but not when specifying index.html as the root object.
+- Save Changes
+
+![404 page](assets/cloudfront-404.png)
+
+## Update Bucket Policy
+
+Go back to your s3 bucket and then to the Permissions tab.  Under Bucket Policy, click Edit.
+
+Here's what you'll need, with your resources in place of mine:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Id": "Policy1692219819119",
+    "Statement": [
+        {
+            "Sid": "Stmt1692219813668",
+            "Effect": "Allow",
+            "Principal": {
+                "Service": "cloudfront.amazonaws.com"
+            },
+            "Action": [
+                "s3:GetObject",
+                "s3:ListBucket"
+            ],
+            "Resource": [
+                "arn:aws:s3:::jss.computer/*",
+                "arn:aws:s3:::jss.computer"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "AWS:SourceArn": "arn:aws:cloudfront::225934246878:distribution/E2NYXH5S9T80Y5"
+                }
+            }
+        }
+    ]
+}
+```
+Some things to note here:
+
+- The "Resource" array must include the bucket itself (no wildcard), and all the objects in it (with wildcard) as separate entries.
+- This is because the the Actions array includes both `s3:ListBucket` for listing the contents of the bucket, and `s3:GetObject` for getting the individual objects in the bucket.
+  - CloudFront needs to be able to list the objects in the bucket to determine whether to serve the 404 page.
+- The principal is CloudFront.
+- We can limit *which* CloudFront distribution has access with the condition block where we specify the distribution's ARN.  Copy it from your distribution's console page.
+
+## Double-check behavior
+
+Go to your domain (such as https://jss.computer).
+
+- You should see your site by accessing your domain.
+- It should be on https.
+- Try going to http and it should redirect to https.
+- Try going to a page that doesn't exist and you should see the 404 page.
+- Try clicking the link from the root page to go to `/foo` and it should work (this is client-side routing).
+- Try reloading the page at `/foo` (server routing) and you should instead see the 404.  Don't panic, we'll fix it!
+
+## Seal off your bucket
+
+The bucket still allows direct public access.  We want to seal it off and require traffic to go through our CloudFront distribution (principle of least privilege!).
+
+- In your s3 bucket under the Permission tab, go to Block public access setting and turn on "Block all public access."
+- In the Properties tab, under static website hosting, go to the link.  You should get a 403!
+- Verify that you can still go to your domain through CloudFront.
+
+Major progress!
+
+
+
+
+
 
 
 
