@@ -68,7 +68,12 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
     - [Add Dockerignore](#add-dockerignore)
     - [Test Docker Locally](#test-docker-locally)
 - [Setup Elastic Container Registry (ECR)](#setup-elastic-container-registry-ecr)
-  - [Push your image.](#push-your-image)
+  - [Push your image](#push-your-image)
+- [Setup Secrets Manager](#setup-secrets-manager)
+- [Setup ECS Service and Load Balancer](#setup-ecs-service-and-load-balancer)
+- [Setup DNS and SSL](#setup-dns-and-ssl)
+- [Setup Backend CI/CD](#setup-backend-cicd)
+- [Seal off public access](#seal-off-public-access)
 
 
 # Introduction
@@ -965,7 +970,7 @@ Let's cap the number of images in our repo at 1 for now so we don't run up a bil
 
 ![Lifecycle policy](assets/ecr-lifecycle-policy.png)
 
-## Push your image.
+## Push your image
 
 Click the View push commands button on your repo's page to show instructions for pushing up your first image.
 
@@ -974,6 +979,45 @@ Click the View push commands button on your repo's page to show instructions for
 - Tag the image with your repository URI with `docker tag strapi-test:latest <your repo id>.dkr.ecr.us-east-1.amazonaws.com/strapi-test:latest`
 - Push the image to ECR with `docker push <your repo id>.dkr.ecr.us-east-1.amazonaws.com/strapi-test:latest`
 - Verify you see the image in your repository.
+
+# Setup Secrets Manager
+
+Next, we need a place to store our secrets when we run our container in the cloud.  Locally they're stored in .env, but we exclude that file in our docker ignore for security purposes.
+
+AWS provides the Secrets Manager that allows us to store secrets and provide access to other AWS services.  We'll create a single "Secret" in Secrets Manager that will store all of our secrets as JSON.
+
+- Go to Secrets Manager and click Store a new secret
+- Select Other type of secret
+- Add the following secrets from your local `.env` file:
+  - APP_KEYS
+  - API_TOKEN_SALT
+  - ADMIN_JWT_SECRET
+  - TRANSFER_TOKEN_SALT
+  - DATABASE_CLIENT
+  - DATABASE_FILENAME
+  - JWT_SECRET
+- Keep the default encryption.
+
+The database environment variables aren't sensitive, but we'll keep all our environment variables here for simplicity.
+
+![create secret](assets/create-secret.png)
+
+- Click Next.
+- Add a name and description for your secret.
+- Keep the other defaults, and click Next.
+- Keep all default on the secrets rotation page (don't enable it), and click Next.
+- On the review page, click Store.
+
+# Setup ECS Service and Load Balancer
+
+
+
+
+# Setup DNS and SSL
+
+# Setup Backend CI/CD
+
+# Seal off public access
 
 
 
