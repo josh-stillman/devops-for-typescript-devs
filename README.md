@@ -71,9 +71,12 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
   - [Push your image](#push-your-image)
 - [Setup Secrets Manager](#setup-secrets-manager)
 - [Setup ECS Service and Load Balancer](#setup-ecs-service-and-load-balancer)
+  - [Create a Cluster](#create-a-cluster)
+  - [Create an ECS Service](#create-an-ecs-service)
+  - [Setup Networking with Security Groups](#setup-networking-with-security-groups)
+  - [Setup Healthchecks](#setup-healthchecks)
 - [Setup DNS and SSL](#setup-dns-and-ssl)
 - [Setup Backend CI/CD](#setup-backend-cicd)
-- [Seal off public access](#seal-off-public-access)
 
 
 # Introduction
@@ -1010,14 +1013,48 @@ The database environment variables aren't sensitive, but we'll keep all our envi
 
 # Setup ECS Service and Load Balancer
 
+We'll run our Docker container with [Elastic Container Service](https://aws.amazon.com/ecs/) (ECS).  ECS is the principal way containers are run on AWS.
+
+There are a few different pieces in ECS that all work together to run our container: A Cluster, a Service, a Task Definition, and a Task.
+
+- ECS Cluster.  This tells ECS on which compute resources to run the container.  It could be EC2 virtual machines that we provision ourselves.  Or it could be AWS's Fargate service, which essentially lets AWS handle allocating the compute resources for us, without us having to worry about provisioning our own EC2 instances.
+  - We'll go with Fargate for now, since its easier to get up and running.  Sadly, it's not in the free tier, so you'll need to stop your service after deploying or you'll be charged.
+- ECS Service.  This is responsible for starting and stopping your containers.  You can configure how many containers you wish to run, setup scaling rules, setup networking, and more.
+- Task Definition.  This is the set of instructions the Service uses for starting each container.  You can configure things like how much cpu and ram to allocate for your container, as well as setup environment variables.
+- Task.  An ECS "Task" is a single running container instance.
+
+In addition, we are going to place an [Application Load Balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html) (ALB) in front of our ECS Service.  The ALB will let us easily point a subdomain to our service using Route 53 (like https://api.jss.computer) and use https.  Then, we'll only allow traffic going to our container from the ALB, rather than directly.
+
+We're mainly using the ALB here for networking purposes, but it can do much more.  As the name suggests, it can route traffic between multiple instances of your application using various strategies to handle increased usage.  It also performs health checks on our containers and will restart containers that have crashed.  Sadly, the ALB is also outside of the free tier.  While the ECS Service can be stopped without deleting it, you'd have to delete the ALB to prevent being charged.
+
+## Create a Cluster
+
+- Go to ECS and click Create cluster.
+- Add a name, and keep the defaults, including Fargate.
+- Click Create.
+
+![create cluster](assets/create-cluster.png)
+
+## Create an ECS Service
 
 
+7. Add a load balancer in the LB section
+    1. name is code-along-api-lb
+    2. Port to balance is 1337
+    3. Listener is HTTPS on 443
+    4. Choose your ACM certificate
+    5. Create new target group on HTTP (verify).  We’ll use HTTP internally so we don’t need more certs, and use HTTPS for public traffic.
+    6. name is code-along-api-tg
+    7. healthcheck endpoint for strapi is `/_health`
+
+## Setup Networking with Security Groups
+
+## Setup Healthchecks
 
 # Setup DNS and SSL
 
 # Setup Backend CI/CD
 
-# Seal off public access
 
 
 
