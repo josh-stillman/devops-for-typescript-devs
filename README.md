@@ -67,6 +67,8 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
     - [Create Dockerfile](#create-dockerfile)
     - [Add Dockerignore](#add-dockerignore)
     - [Test Docker Locally](#test-docker-locally)
+- [Setup Elastic Container Registry (ECR)](#setup-elastic-container-registry-ecr)
+  - [Push your image.](#push-your-image)
 
 
 # Introduction
@@ -942,10 +944,36 @@ Note that we're commenting out the line ignoring our .tmp directory holding our 
 
 If you run into trouble logging into the admin dashboard, the latest Strapi version might be broken.  4.12.6 doesn’t work in production, so use 4.12.1 instead.
 
+# Setup Elastic Container Registry (ECR)
 
+Now we need to upload our Strapi Docker image to AWS.  They're stored in the Elastic Container Registry (ECR) service, and then other AWS services can access them and run containers from those images.
 
+- Search for ECR and make sure you're in us-east-1.
+- Click Create Repository.
+- Add a name, keep the repo private, and keep the other defaults, then click Create.
 
+![create ecr repo](assets/create-ecr-repo.png)
 
+Let's cap the number of images in our repo at 1 for now so we don't run up a bill.
+
+- Go to your new repo, and click Lifecycle Policy, then Create rule.
+- Keep the priority at 1.
+- Add a description.
+- Apply the policy to any image status.
+- Select Image Count More than from the dropdown, and choose 1.
+- Click Save.
+
+![Lifecycle policy](assets/ecr-lifecycle-policy.png)
+
+## Push your image.
+
+Click the View push commands button on your repo's page to show instructions for pushing up your first image.
+
+- Login with `aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <your repo id>.dkr.ecr.us-east-1.amazonaws.com`
+- We already built our image, so you can skip running `docker build -t strapi-test .`
+- Tag the image with your repository URI with `docker tag strapi-test:latest <your repo id>.dkr.ecr.us-east-1.amazonaws.com/strapi-test:latest`
+- Push the image to ECR with `docker push <your repo id>.dkr.ecr.us-east-1.amazonaws.com/strapi-test:latest`
+- Verify you see the image in your repository.
 
 
 
