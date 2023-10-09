@@ -87,7 +87,7 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
       - [Setup](#setup)
     - [Load Balancing](#load-balancing)
   - [Update Healthcheck settings](#update-healthcheck-settings)
-  - [Setup Networking with Security Groups](#setup-networking-with-security-groups)
+  - [Restrict Public Access to ECS Service](#restrict-public-access-to-ecs-service)
 - [Setup DNS and SSL](#setup-dns-and-ssl)
 - [Setup Backend CI/CD](#setup-backend-cicd)
 
@@ -1204,9 +1204,28 @@ Load balancers perform health checks on the target group, regularly pinging the 
 
 ## Update Healthcheck settings
 
-We need to update our healthcheck settings because the ALB is expecting a code 200 response, but Strapi sends a 203
+We need to update our healthcheck settings because the ALB is expecting a code 200 response, but Strapi sends a an empty [204](https://www.webfx.com/web-development/glossary/http-status-codes/what-is-a-204-status-code/#:~:text=A%20204%20status%20code%20is%20used%20when%20the%20server%20successfully,such%20as%20a%20DELETE%20request.) response instead
 
-## Setup Networking with Security Groups
+- Go to EC2, where we'll manage our Load Balancer and Security Groups.
+- Click Target Groups on the left-hand side.
+- Select your Target Group.
+- Select the Health checks tab, and click Edit.
+- Expand the Advanced health check settings dropdown.
+- Under Success codes, use the range 200-204, and click Save.
+
+![health check codes](assets/health-check-codes.png)
+
+## Restrict Public Access to ECS Service
+
+Next, let's require traffic to flow through the Load Balancer.
+
+- Still in EC2, select Security Groups on the left-hand side.
+- You should see 3 groups: the default VPC group, the Load Balancer's Security Group, and the ECS Service's Security Group.
+- Select the ECS Service's Security Group.
+- Edit the inbound rule on 1337.  Choose a custom source, then choose the Load Balancer's Security Group.
+- Click Save rules.
+
+![ecs security group](assets/ecs-security-group.png)
 
 # Setup DNS and SSL
 
