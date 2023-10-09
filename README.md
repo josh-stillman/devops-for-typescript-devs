@@ -76,9 +76,18 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
     - [Intrastructure Requirements](#intrastructure-requirements)
     - [Container Definition](#container-definition)
     - [Environment Variables](#environment-variables)
+  - [Allow ECS to Access to Secrets](#allow-ecs-to-access-to-secrets)
   - [Create an ECS Service](#create-an-ecs-service)
+    - [Environment](#environment)
+    - [Deployment Configuration](#deployment-configuration)
+    - [Networking](#networking)
+      - [VPC](#vpc)
+      - [Subnets and Availability Zones](#subnets-and-availability-zones)
+      - [Security Groups](#security-groups)
+      - [Setup](#setup)
+    - [Load Balancing](#load-balancing)
+  - [Update Healthcheck settings](#update-healthcheck-settings)
   - [Setup Networking with Security Groups](#setup-networking-with-security-groups)
-  - [Setup Healthchecks](#setup-healthchecks)
 - [Setup DNS and SSL](#setup-dns-and-ssl)
 - [Setup Backend CI/CD](#setup-backend-cicd)
 
@@ -710,7 +719,7 @@ The pipeline will need an AWS access key to use the AWS CLI to upload files to s
 
 **TODO** Is the resource /*?  Do you need ListBucket?  Check back on the Cloudfront policy, /* might be all that is needed.
 
-We want the pipeline to be able to add files to the bucket with the `aws s3 sync --delete` command, which requires `s3:PutObject`, `s3:ListBucket`, and `s3:DeleteObject`.  We're deleting the old files in the bucket so we start with a clean slate (what if there was a page at /baz that we end up removing in a new pull request -- we need to clear the bucket on each push or it will remain).
+We want the pipeline to be able to add files to the bucket with the `aws s3 sync --delete` command, which requires `s3:PutObject`, `s3:ListBucket`, and `s3:DeleteObject`.  We're deleting the old files in the bucket so we start with a clean slate (what if there was a page at `/baz` that we end up removing in a new pull request -- we need to clear the bucket on each push or it will remain).
 
 We also need the user to be able to create invalidations on our CloudFront distribution with `cloudfront:CreateInvalidation`.
 
@@ -854,7 +863,7 @@ We've got a fully functional frontend environment now, complete with a working C
 
 To keep our backend simple we're going to use [Strapi](https://strapi.io/), a headless CMS.  Out of the box, Strapi will let us set up an admin user, log into an admin dashboard, add items to a collection, and serve those items as JSON via an API endpoint.  In production, Strapi would be a good choice when you need to let non-technical users edit frequently changing information, like a news feed.
 
-We'll use strapi to create a newsfeed.  Each item will just have a headline and a body and a publication date.  Then we'll display our newsfeed on our frontend.
+We'll use Strapi to create a news feed.  Each item will just have a headline and a body and a publication date.  Then we'll display our newsfeed on our frontend.
 
 We can follow the [quickstart guide](https://docs.strapi.io/dev-docs/quick-start#_1-install-strapi-and-create-a-new-project).
 
@@ -1081,25 +1090,123 @@ Expand the environment variables dropdown.
 
 Click create!
 
+## Allow ECS to Access to Secrets
+
+Now we need to allow the Task Execution Role, which starts our tasks, access to the secrets in Secrets Manager.
+
+- Go to IAM.
+- Go to Roles.
+- Find the ecsTaskExecutionRole that AWS created for you when you created the Task Definition.
+- Click Add Permissions, then Create inline policy.
+- Add this policy JSON.  You'll need your Secret's ARN, which you can get from the Secrets Manager console or the CLI with `aws secretsmanager list-secrets`.
+
+```json
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Sid": "VisualEditor0",
+			"Effect": "Allow",
+			"Action": "secretsmanager:GetSecretValue",
+			"Resource": "arn:aws:secretsmanager:us-east-1:225934246878:secret:prod/code-along-api-W3kDvu"
+		}
+	]
+}
+
+```
+
 ## Create an ECS Service
 
-We've got our Cluster to run our Service on, and we've got a Task Definition that our Service can use to start our Task.  Now we can create the Service itself.
+We've got our Cluster to run our Service on, we've got a Task Definition that our Service can use to start our Task, and we've got our secrets set up.  Now we can create the Service itself.
 
 - Go to your cluster, and under services, click Create.
--
 
-7. Add a load balancer in the LB section
-    1. name is code-along-api-lb
-    2. Port to balance is 1337
-    3. Listener is HTTPS on 443
-    4. Choose your ACM certificate
-    5. Create new target group on HTTP (verify).  We’ll use HTTP internally so we don’t need more certs, and use HTTPS for public traffic.
-    6. name is code-along-api-tg
-    7. healthcheck endpoint for strapi is `/_health`
+### Environment
+
+- In the Environment section keep all the defaults.
+
+![ecs service environment](assets/ecs-service-environment.png)
+
+### Deployment Configuration
+
+- In the Deployment Configuration, select the Task Definition you created from the dropdown, and choose the latest revision.
+- Add a service name.
+- Keep the other defaults, including keeping the desired tasks at 1.
+  - If you expand the Deployment Options section, you'll see the Min and Max running tasks are set to 100% and 200% of the desired number (1).  This allows ECS to perform a [rolling update](https://docs.aws.amazon.com/AmazonECS/latest/bestpracticesguide/service-options.html) when new code is deployed: it first spins up a new container, verifies that it is healthy, then stops the old container.
+
+![ecs deployment configuration](assets/ecs-service-deployment.png)
+
+### Networking
+
+In this section, we setup networking rules for our service.  There are a number of new concepts in this section.
+
+#### VPC
+
+VPC stands for "[Virtual Private Cloud](https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html)," which is an isolated set of cloud resources in a virtual network.  Every AWS account comes with a default VPC, which we'll use here.  You can setup additional VPCs if you need [additional isolation](https://stackoverflow.com/questions/66115482/when-should-i-create-different-vpcs-and-not-just-different-subnets) (something you might do for multiple environments in a production application, for example).  Think of them as a private network for your AWS resources.
+
+Most of the frontend resources we created are not in your VPC, which makes sense given that these services are designed to be publicly available (CloudFront, public DNS Service, public Certificate Authority, etc.).  The same is true of the AWS services we've used where you don't control the underlying compute resources, like [ECR](https://docs.aws.amazon.com/AmazonECR/latest/userguide/vpc-endpoints.html), [Secrets Manager](https://aws.amazon.com/blogs/security/how-to-connect-to-aws-secrets-manager-service-within-a-virtual-private-cloud/), and [s3](https://stackoverflow.com/questions/52093540/s3-buckets-are-not-residing-in-vpcs).
+
+In contrast, our server-side code and associated resources are within our VPC (ECS Service and ALB).  This gives us control over networking and how and whether to expose them to incoming traffic.
+
+#### Subnets and Availability Zones
+
+Within each AWS Region, there are sub-regions called [availability zones](https://docs.aws.amazon.com/whitepapers/latest/get-started-documentdb/aws-regions-and-availability-zones.html), which are geographic groupings of physical data centers.
+
+![availability zones](assets/availability-zones.png)
+
+Within your VPC, you have access to a number of "[subnets](https://docs.aws.amazon.com/vpc/latest/userguide/configure-subnets.html)," which each reside in a single availability zones.  Thus, subnets are subdivisions of your VPC that are located in the various availability zones in your AWS region.
+
+Subnets can be made public by assigning public IPs to resources in them and allowing public Internet traffic.  You might do this if, for instance, you were hosing a web application (such as a Next server for SSR).  You can also keep subnets private for additional security for services like Databases.  You don't assign public IPs to resources in private subnets, and only allow access to those resources from other subnets within your VPC.
+
+Here's an example diagram from the [AWS docs on VPCs and Subnets](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-example-web-database-servers.html) showing such a setup with a web server in public subnets and a database in private subnets across two availabilty zones.
+
+![subnets example diagram](assets/subnets.png)
+
+#### Security Groups
+
+[Security Groups](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-security-groups.html) function like network firewalls for resources in your VPC.  They permit or deny network traffic from certain sources to resources in the group on certain ports.  Here, for instance, we want to allow incoming traffic on port 1337 to our Strapi app.  For the permitted traffic source, we can specify specific IPs, IP ranges, or other Security Groups.
+
+The ability to link together two Security Groups will allow us to require incoming traffic to flow through our load balancer.  The ECS Service's Security group will permit incoming traffic on port 1337 only from the load balancer's Security Group.
+
+#### Setup
+
+Now that we have a better understanding of these AWS networking concepts, let's setup networking for our ECS Service.
+
+- Keep the default VPC and subnets selected.
+- Choose Create a new Security Group for our ECS service.
+  - Add an inbound rule: Custom TCP on port 1337 from anywhere. We'll update this shortly to restrict access to only our load balancer.
+- Keep the Public IP turned on.  We'll limit access later using a second Security Group for our load balancer.
+  - Turning off the Public IP would be more secure, but would add a lot of complexity and cost.  We could use [Private VPC endpoints](https://docs.aws.amazon.com/whitepapers/latest/aws-privatelink/what-are-vpc-endpoints.html) to route traffic between our ECS Service and other AWS services without using the public Internet, but they would take more work to setup and they're not free.
+  - Here, we'll settle for restricting all public access with Security Group, even though a public IP is assigned.
+
+![ecs service networking](assets/ecs-service-networking.png)
+
+### Load Balancing
+
+Expand the Load balancing section and add a load balancer, which we'll use for routing.
+
+- Choose Application Load Balancer.
+- Add a name.
+- Increase the health check grace period to 60 seconds or more.
+- Under Container, choose your container on port 1337.
+- Create a new listener on Port 443 for HTTPS (the default HTTPS port).  Choose your existing ACM certificate.  This will allow incoming public HTTPS traffic to our load balancer.
+- Under Target Group, create a new Target Group.
+  - Add a name.
+  - Keep the healthcheck protocols as HTTP.  We’ll use HTTP internally so we don’t need more certs.
+  -  Update the healthcheck path to be Strapi's healthcheck path, `/_health`.
+-  Click Create.
+
+![ecs service load balancer](assets/ecs-service-lb.png)
+
+A "[Target Group](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-target-groups.html)" is a group of resources to which the Load Balancer will route traffic (for instance, multiple EC2 Virtual Machines).  It will "balance" the load between the targets in the Target Group using various algorithms (round-robin by default).  With ECS, [multiple tasks](https://docs.aws.amazon.com/AmazonECS/latest/userguide/create-application-load-balancer.html) can be added to the Target Group, and the Load Balancer can then balance the load of incoming traffic between the tasks.  But here, we're only using 1 task and just using the ALB for routing purposes.
+
+Load balancers perform health checks on the target group, regularly pinging the designated endpoint to ensure the target is still up.  If the healthcheck is misconfigured, it will lead to the Load Balancer repeatedly stopping and restarting your ECS service.
+
+## Update Healthcheck settings
+
+We need to update our healthcheck settings because the ALB is expecting a code 200 response, but Strapi sends a 203
 
 ## Setup Networking with Security Groups
-
-## Setup Healthchecks
 
 # Setup DNS and SSL
 
