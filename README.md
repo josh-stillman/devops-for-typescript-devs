@@ -72,6 +72,10 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
 - [Setup Secrets Manager](#setup-secrets-manager)
 - [Setup ECS Service and Load Balancer](#setup-ecs-service-and-load-balancer)
   - [Create a Cluster](#create-a-cluster)
+  - [Create a Task Definition](#create-a-task-definition)
+    - [Intrastructure Requirements](#intrastructure-requirements)
+    - [Container Definition](#container-definition)
+    - [Environment Variables](#environment-variables)
   - [Create an ECS Service](#create-an-ecs-service)
   - [Setup Networking with Security Groups](#setup-networking-with-security-groups)
   - [Setup Healthchecks](#setup-healthchecks)
@@ -1021,7 +1025,7 @@ There are a few different pieces in ECS that all work together to run our contai
   - We'll go with Fargate for now, since its easier to get up and running.  Sadly, it's not in the free tier, so you'll need to stop your service after deploying or you'll be charged.
 - ECS Service.  This is responsible for starting and stopping your containers.  You can configure how many containers you wish to run, setup scaling rules, setup networking, and more.
 - Task Definition.  This is the set of instructions the Service uses for starting each container.  You can configure things like how much cpu and ram to allocate for your container, as well as setup environment variables.
-- Task.  An ECS "Task" is a single running container instance.
+- Task.  An ECS "Task" here is a single running container instance.  (A Task can have [multiple](https://docs.aws.amazon.com/AmazonECS/latest/bestpracticesguide/application.html) running Docker containers if you need to run "sidecar" tasks, but generally a task definition should have one main container with a single purpose.)
 
 In addition, we are going to place an [Application Load Balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html) (ALB) in front of our ECS Service.  The ALB will let us easily point a subdomain to our service using Route 53 (like https://api.jss.computer) and use https.  Then, we'll only allow traffic going to our container from the ALB, rather than directly.
 
@@ -1035,8 +1039,54 @@ We're mainly using the ALB here for networking purposes, but it can do much more
 
 ![create cluster](assets/create-cluster.png)
 
+## Create a Task Definition
+
+- On the ECS side bar, click Task Definitions, then the Create new task definition button, and choose the non-JSON option.
+- Add a family name, like strapi-task-def.
+
+### Intrastructure Requirements
+
+- Under Infrastructure Requirements, keep Fargate.
+  - Scale down the resources to .5 vCPU and 1GB Memory.  1 vCPU is equivalent to 1 CPU thread.  Strapi will work with .5 vCPU but I haven't tested it with .25.
+  - Don't create a Task Role.
+  - Let AWS create a Task Execution Role for you.
+
+![infrastructure requirements](assets/task-def-infrastructure.png)
+
+What are these roles?  The [Task Execution Role](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_execution_IAM_role.html) is the role assumed by the ECS Service in starting the container.  It needs permissions to do things like access ECR to get your image and access Secrets Manager for environment variables.  The [Task Role](https://towardsthecloud.com/amazon-ecs-task-role-vs-execution-role), on the other hand, is the role assumed by the running task, and is used for things like uploading files to s3 buckets or accessing other AWS services.
+
+### Container Definition
+
+- In the container definition section, add a name for your container.
+- Use the URI of the image you uploaded, which you can find in ECR.  It should look like `<your repo id>.dkr.ecr.us-east-1.amazonaws.com/strapi-test:latest`.
+- Add a port mapping for 1337 on tcp, which is the port Strapi runs on.
+  - *****TODO** Can you remove port 80 or is it needed for the ALB healthcheck?
+- Match the CPU and Memory Hard and Soft limits to what you set above for the task: .5 vCPU and 1 GB.
+- Keep the other defaults.
+
+![container definition](assets/container-definition.png)
+
+### Environment Variables
+
+Expand the environment variables dropdown.
+
+- Add the environment variables you added to the Secrets Manager.
+- For each, choose ValueFrom.
+- For each value, you need to construct a URI for the secret.  It takes [this form](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/secrets-envvar-secrets-manager.html): `arn:aws:secretsmanager:region:aws_account_id:secret:secret-name:json-key:version-stage:version-id`
+  - So, for the `APP_KEYS` secret, it would look like this: `arn:aws:secretsmanager:us-east-1:225934246878:secret:prod/code-along-api-W3kDvu:APP_KEYS::`.
+  - This is the ARN of your Secret (which you can copy from Secrets Manager), followed by the name of the particular environment variable, followed by two colons.
+  - The two colons at the end are required!  They just mean that we don't want to specify versioning information and that we want the default, [current version](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/secrets-envvar-secrets-manager.html) of the secret.
+
+![container environment variables](assets/container-env-vars.png)
+
+Click create!
+
 ## Create an ECS Service
 
+We've got our Cluster to run our Service on, and we've got a Task Definition that our Service can use to start our Task.  Now we can create the Service itself.
+
+- Go to your cluster, and under services, click Create.
+-
 
 7. Add a load balancer in the LB section
     1. name is code-along-api-lb
