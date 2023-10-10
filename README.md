@@ -93,8 +93,9 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
       - [CIDR Blocks](#cidr-blocks)
     - [Attach Security Group to Load Balancer](#attach-security-group-to-load-balancer)
     - [Update ECS Security Group](#update-ecs-security-group)
-- [Setup DNS and SSL](#setup-dns-and-ssl)
+- [Setup DNS](#setup-dns)
 - [Setup Backend CI/CD](#setup-backend-cicd)
+- [Call API from the Frontend](#call-api-from-the-frontend)
 
 
 # Introduction
@@ -1261,13 +1262,30 @@ There are a couple new concepts in this section as well:
 
 - Verify that you can't reach Strapi directly on its public IP.  To to ECS -> your Cluster -> your Service -> Tasks tab -> your Task -> Public IP on port 1337.
 
-# Setup DNS and SSL
+# Setup DNS
 
+Now let's serve our Strapi app from a subdomain on our domain.
+
+- Go to Route 53, click  Hosted Zones, and choose your Hosted Zone.
+- Click Add record.
+- Add your subdomain in Record name.  We'll use `api`.
+- Keep it as an A record.
+- Switch on the Alias toggle.
+- Choose Alias to Application and Classic Load Balancer.
+- Choose us-east-1.
+- Select your ALB from the dropdown.
+- Keep the other defaults, and click Create records.
+
+![api dns](assets/api-dns.png)
+
+Try curling your service at the subdomain `curl https://api.jss.computer/api/news-items`. The DNS record may take a little bit of time to propagate.
+
+![api dns](assets/curl-api.png)
 
 
 # Setup Backend CI/CD
 
-
+# Call API from the Frontend
 
 
 
