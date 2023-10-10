@@ -93,7 +93,7 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
       - [CIDR Blocks](#cidr-blocks)
     - [Attach Security Group to Load Balancer](#attach-security-group-to-load-balancer)
     - [Update ECS Security Group](#update-ecs-security-group)
-- [Setup DNS](#setup-dns)
+- [Setup API DNS](#setup-api-dns)
 - [Setup Backend CI/CD](#setup-backend-cicd)
   - [Create Backend Pipeline User](#create-backend-pipeline-user)
     - [Create Policy](#create-policy-1)
@@ -103,6 +103,12 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
   - [Add GitHub Action](#add-github-action)
   - [Add Secrets to GitHub](#add-secrets-to-github)
   - [Test](#test)
+- [Call API from the Frontend](#call-api-from-the-frontend)
+  - [Create Newsfeed component](#create-newsfeed-component)
+  - [Add GitHub Environment Variables](#add-github-environment-variables)
+  - [Test](#test-1)
+- [Wrapping up Deploying Through the AWS Console](#wrapping-up-deploying-through-the-aws-console)
+- [Enter Pulumi](#enter-pulumi)
 
 
 # Introduction
@@ -1269,7 +1275,7 @@ There are a couple new concepts in this section as well:
 
 - Verify that you can't reach Strapi directly on its public IP.  To to ECS -> your Cluster -> your Service -> Tasks tab -> your Task -> Public IP on port 1337.
 
-# Setup DNS
+# Setup API DNS
 
 Now let'sserve our Strapi app from a subdomain on our domain.
 
@@ -1507,6 +1513,137 @@ You can keep the ECS_TASK_DEFINITION variable as `.aws/task-definition.json`, wh
 - Push up and verify that the action runs.
 - Verify in the ECS console that your Service deployment completes.
 - Test with curl again to verify the new newsfeed item is returned.
+
+# Call API from the Frontend
+
+We're finally in a position to hook up our frontend and backend!
+
+## Create Newsfeed component
+
+We're going to create a [client component](https://nextjs.org/docs/app/building-your-application/rendering/client-components) to render our newsfeed.  Client Components only render on the client at run time, as opposed to Next's typical strategy of rendering static content at build or request time.  This allows us to pull news feed items in real time.  Because we are generating a static build with Next, this is our only option to pull data in real time on every page load.
+
+However, the SEO and page-load benefits Next offers are lost for client components, so Next encourages you to "[move client components down the tree](https://nextjs.org/docs/app/building-your-application/rendering/composition-patterns#moving-client-components-down-the-tree)." You want to keep as much of your application statically rendered as possible, and only client-render what you need to.
+
+- Install the [SWR](https://swr.vercel.app/) library, which is the conventional library used in Next projects for [fetching data](https://nextjs.org/docs/app/building-your-application/data-fetching/fetching-caching-and-revalidating#fetching-data-on-the-client-with-third-party-libraries) on the client.  It's built by the Next team, and it's similar to [React Query](https://tanstack.com/query/latest).  Run `npm i -E swr`.
+- Create a new component in your frontend repo at `src/components/NewsFeed.tsx`.
+- The first line of this file should be `'use client';`.  This directive tells Next this is a client component.
+- Add a simple component to fetch and display the newsfeed items from your Strapi backend.
+
+```typescript
+'use client';
+import useSWR from 'swr';
+import { NewsItemsResponse } from '../types/api';
+import styles from './NewsFeed.module.css';
+
+const fetcher = (url: string) => fetch(url).then(res => res.json());
+
+const params = new URLSearchParams();
+
+params.set('sort', 'publishedAt:desc');
+
+export function NewsFeed() {
+  const { data, error, isLoading } = useSWR<NewsItemsResponse>(
+    `${process.env.NEXT_PUBLIC_API_URL}/api/news-items?${params.toString()}`,
+    fetcher
+  );
+
+  if (isLoading) return <div>loading...</div>;
+
+  if (error || !data?.data) return <div>failed to load</div>;
+
+  return (
+    <div className={styles.newsItemList}>
+      <h1>NewsFeed! 🗞️</h1>
+
+      {data.data.map(({ attributes, id }) => (
+        <div key={id} className={styles.newsItem}>
+          <h2>{attributes.Title}</h2>
+
+          <h3>
+            <i>{attributes.Body}</i>
+          </h3>
+
+          <span>{new Date(attributes.publishedAt).toLocaleDateString()}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+You can add types for the API response.
+
+```typescript
+export interface NewsItem {
+  id: number;
+  attributes: {
+    Title: string;
+    Body: string;
+    publishedAt: string;
+  };
+}
+
+export interface StrapiResponse {
+  meta: {
+    pagination: {
+      page: number;
+      pageSize: number;
+      pageCount: number;
+      total: number;
+    };
+  };
+}
+
+export interface NewsItemsResponse extends StrapiResponse {
+  data: NewsItem[];
+}
+
+```
+
+Render the NewsFeed component on your root page.
+
+```jsx
+<NewsFeed />
+```
+
+Add a `.env` file to set your API URL environment variable.  This isn't a secret and will be committed into your repo.  It serves as the default, but we can override it with GitHub environment variables.
+
+```config
+NEXT_PUBLIC_API_URL=http://localhost:1337
+```
+
+Start your frontend and backend locally, and verify that the news feed works.
+
+See this [pull request](https://github.com/josh-stillman/devops-for-typescript-devs-frontend/pull/1/files) for more.
+
+## Add GitHub Environment Variables
+
+In your frontend GitHub repo, go to Settings -> Secrets and variables -> Actions -> Variables -> New Repository Variable.
+
+Add an `API_URL` for your api subdomain, such as `https://api.jss.computer`.
+
+In your GitHub Action file, add an `env:` key before the `steps:` key to read that variable.
+
+```yaml
+    env:
+      NEXT_PUBLIC_API_URL: ${{ vars.API_URL }}
+```
+
+## Test
+
+Commit, push, and verify that the newsfeed works on your deployed frontend.
+
+**TODO** Screenshot of app with newsfeed after cleaning it up
+
+# Wrapping up Deploying Through the AWS Console
+
+We've come a long way!  We've deployed an entire fullstack application to AWS though the console.  Enjoy the moment.  You've earned it.  🎉
+
+But suppose you were then asked to stand up a second (or third, or fourth) environment for the app.  You'd probably panic if you thought you had to go through all that work in the console again!  😭  In the remainder of the course, we're going to see how Pulumi, an infrastructure as code tool, can help us streamline the process and get much more control over our cloud resources than we had using the Console.  It will make things like standing up and tearing down multiple environments much easier.
+
+# Enter Pulumi
+
+
 
 
 
