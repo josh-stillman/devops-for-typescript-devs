@@ -95,7 +95,14 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
     - [Update ECS Security Group](#update-ecs-security-group)
 - [Setup DNS](#setup-dns)
 - [Setup Backend CI/CD](#setup-backend-cicd)
-- [Call API from the Frontend](#call-api-from-the-frontend)
+  - [Create Backend Pipeline User](#create-backend-pipeline-user)
+    - [Create Policy](#create-policy-1)
+    - [Create User](#create-user-1)
+    - [Create Access Key](#create-access-key-1)
+  - [Commit Task Definition](#commit-task-definition)
+  - [Add GitHub Action](#add-github-action)
+  - [Add Secrets to GitHub](#add-secrets-to-github)
+  - [Test](#test)
 
 
 # Introduction
@@ -104,7 +111,7 @@ Welcome to DevOps for TypeScript Developers!  The goal of this tutorial is to ga
 
 In this tutorial, we'll create and deploy a full stack application using Next.js to build a static frontend, and Strapi, a headless CMS, to serve as our backend.  We'll Dockerize Strapi, then we'll set up CI/CD pipelines with GitHub Actions.  We'll deploy our application's first environment through the AWS console to gain familiarity with the concepts.  Then we'll deploy a second development environment using Pulumi, an infrastructure-as-code framework that lets us use TypeScript to create cloud infrastructure.  We'll see how a tool like Pulumi can give us much more power and control when building cloud infrastructure.
 
-The course is more practical than theoretical. These are deep topics, but they will be presented as simply as possible here, with a lot of details omitted so we can focus on building.  I'll include some links to other great resources that will let you dive deeper and learn more about the concepts.  But I've found there's a huge gap between a conceptual understanding of these topics and actually hacking through the weeds to deploy a real application.  My hope is that this course demystifies DevOps and provides a foundation to start deploying your applications to the world.
+The course is more practical than theoretical. These are deep topics, but they will be presented as simply as possible here, with a lot of details omitted so we can focus on building.  I'll include some links to other great resources that will let you dive deeper and learn more about the concepts.  But I've found there's a huge gap between a conceptual understanding of these topics and actually hacking through the weeds to deploy a real application.  My hope is that this course demystifies DevOps and provides a practical foundation to start deploying your applications to the world.
 
 The focus here is on deployment, so the site itself will just be a very simple blog.  Please feel free to build on it from here!
 
@@ -1264,7 +1271,7 @@ There are a couple new concepts in this section as well:
 
 # Setup DNS
 
-Now let's serve our Strapi app from a subdomain on our domain.
+Now let'sserve our Strapi app from a subdomain on our domain.
 
 - Go to Route 53, click  Hosted Zones, and choose your Hosted Zone.
 - Click Add record.
@@ -1282,11 +1289,224 @@ Try curling your service at the subdomain `curl https://api.jss.computer/api/new
 
 ![api dns](assets/curl-api.png)
 
-
 # Setup Backend CI/CD
 
-# Call API from the Frontend
+Let's set up our backend CI/CD Pipeline.  We'll need to create a pipeline user with all of the necessary permissions.  Then we'll need to setup our GitHub Action.
 
+To make it easier to verify that new code has been deployed, let's commit our database file.  Then we can just add another item to the news feed to verify the new container got deployed.
+
+Update the .gitignore file:
+
+
+```ignore
+############################
+# Logs and databases
+############################
+
+# For present purposes we'll commit our DB
+# .tmp
+```
+
+## Create Backend Pipeline User
+
+The backend pipeline user [needs permissions](https://github.com/aws-actions/amazon-ecs-deploy-task-definition/tree/df9643053eda01f169e64a0e60233aacca83799a/#permissions) to push a new Docker image to ECR, update our Task Definition to reference the new image URI we uploaded to ECR, update the ECS Service to use the new revision of the Task Definition, and pass the roles that the updated Service and Task will use to them.
+
+Why do we need to pass roles to our ECS Service and Task?  AWS often requires you to [pass the role(s)](https://serverfault.com/questions/945596/why-does-aws-lambda-need-to-pass-ecstaskexecutionrole-to-ecs-task) that a resource will use when setting it up and configuring it.  "This [allows](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_passrole.html) the service to assume the role later."  So, any roles listed in the Task Definition must be passed, and the pipeline user must have permission to do so.
+
+### Create Policy
+
+- Go to IAM, then Policies, then Create policy.
+- Add the following JSON, and replace the ECR Repo ARN, ECS Task Role ARN, and ECS Task Execution Role ARN:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "VisualEditor0",
+            "Effect": "Allow",
+            "Action": [
+                "ecr:DescribeImageScanFindings",
+                "ecr:GetLifecyclePolicyPreview",
+                "ecr:GetDownloadUrlForLayer",
+                "ecr:ListTagsForResource",
+                "ecr:UploadLayerPart",
+                "ecr:ListImages",
+                "ecr:PutImage",
+                "ecs:UpdateService",
+                "iam:PassRole",
+                "ecr:BatchGetImage",
+                "ecr:CompleteLayerUpload",
+                "ecr:DescribeImages",
+                "ecr:DescribeRepositories",
+                "ecs:DescribeServices",
+                "ecr:InitiateLayerUpload",
+                "ecr:BatchCheckLayerAvailability",
+                "ecr:GetRepositoryPolicy",
+                "ecr:GetLifecyclePolicy",
+                "ecr:GetAuthorizationToken",
+                "sts:AssumeRole"
+            ],
+            "Resource": [
+                "arn:aws:ecr:us-east-1:225934246878:repository/code-along",
+                "arn:aws:iam::225934246878:role/ecsTaskExecutionRole",
+                "arn:aws:ecs:us-east-1:225934246878:service/code-along-api/code-along-api-lb"
+            ]
+        },
+        {
+            "Sid": "VisualEditor1",
+            "Effect": "Allow",
+            "Action": [
+                "ecs:ListServices",
+                "ecs:RegisterTaskDefinition",
+                "ecr:GetAuthorizationToken",
+                "ecs:ListTaskDefinitions",
+                "ecs:DescribeTaskDefinition"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+- Name and save the policy.
+
+**TODO** Narrow the permissions.
+
+### Create User
+
+- In IAM, go to Users, and click Create User.
+- Add a name, and don't provide access to the console.
+- Click Attach policies directly.
+- Filter by Customer managed policies.
+- Find the policy name you just created, and click the checkbox to attach it to the user.
+- On the review page, click Create user.
+
+### Create Access Key
+
+- Find your user, and go to the Security Credentials tab.
+- Under Access Keys, hit the Create Access Key button.
+- Bypass the warnings.
+- Copy down the credentials and store them somewhere safe and secure.  Remember, you can only view them once!  We'll add these to GitHub in a minute.
+
+## Commit Task Definition
+
+We're going to need to commit our task definition into our repo.  It's probably easiest to copy it from the console.
+
+- Go to ECS -> Task Definitions (on the left-hand menu) -> your Task Defition -> JSON tab.
+- Copy it and save it to your repo at `.aws/task-definition.json`.
+- Commit.
+
+Take a look at the Task Definition.  You'll see one reason why using Secrets Manager was important.  If we didn't do that, we'd have to commit our secrets into our GitHub repo, which is a no-no.
+
+## Add GitHub Action
+
+We can build off of the the Deploy to ECS [starter workflow](https://github.com/actions/starter-workflows/blob/main/deployments/aws.yml).
+
+```yaml
+name: Deploy to Amazon ECS
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+  # Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+  # However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+concurrency:
+  group: "frontend"
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1                           # set this to your preferred AWS region, e.g. us-west-1
+  ECR_REPOSITORY: code-along                      # set this to your Amazon ECR repository name
+  ECS_SERVICE: code-along-api-service-2           # set this to your Amazon ECS service name
+  ECS_CLUSTER: code-along-api                     # set this to your Amazon ECS cluster name
+  ECS_TASK_DEFINITION: .aws/task-definition.json  # set this to the path to your Amazon ECS task definition file, e.g. .aws/task-definition.json
+  CONTAINER_NAME: code-along-api                  # set this to the name of the container in the
+                                                  # containerDefinitions section of your task definition
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@0e613a0980cbf65ed5b322eb7a1e075d28913a83
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@62f4f872db3836360b72999f4b87f1ff13310f3a
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          # Build a docker container and
+          # push it to ECR so that it can
+          # be deployed to ECS.
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Fill in the new image ID in the Amazon ECS task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@c804dfbdd57f713b6c079302a4c01db7017a36fc
+        with:
+          task-definition: ${{ env.ECS_TASK_DEFINITION }}
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.build-image.outputs.image }}
+
+      - name: Deploy Amazon ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@df9643053eda01f169e64a0e60233aacca83799a
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+```
+
+This workflow runs on every change to the `main` branch. At a high-level this workflow:
+- Checks out your code.
+- Sets up the AWS CLI with your access keys.
+- Logs into your ECR repo.
+- Builds a Docker image from the new code you just pushed to `main`.
+- Tags that image with the latest commit SHA hash.
+- Pushes that image to your ECR repo.
+- Generates a new Task Definition JSON file from the Task Definition JSON file we committed into our repository, adding the new Docker image URI to the updated Task Definition.
+- Registers the new Task Definition revision in AWS.
+- Updates your ECS Service to use the new Task Definition revision, which triggers your service to deploy a new Task with the updated Docker image and spin down the old running Task.
+
+You'll need to edit the `env:` block in the action with the following:
+- ECR Repo Name.  You can get it from the console or with `aws ecr describe-repositories`.  Use the `repositoryName`, not the ARN.
+- ECS Service Name.  You can get it from the console by navigating to your ECS Cluster under Services.  It's the Service name listed, not an ARN.
+- Container Name.  Copy this from your Task Definition JSON.  Use `name` under `containerDefinitions`.  Again, not an ARN.
+
+You can keep the ECS_TASK_DEFINITION variable as `.aws/task-definition.json`, which we added previously.
+
+## Add Secrets to GitHub
+
+- In your GitHub repo, go to Settings -> Security -> Secrets and variables -> Actions
+- Add the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` for the backend pipeline user, which you copied and saved earlier.
+
+## Test
+
+- To test your deployment, you can start Strapi locally and add a newsfeed item, and then commit the change to the local database.
+- Push up and verify that the action runs.
+- Verify in the ECS console that your Service deployment completes.
+- Test with curl again to verify the new newsfeed item is returned.
 
 
 
