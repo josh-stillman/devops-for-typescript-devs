@@ -76,7 +76,7 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
     - [Intrastructure Requirements](#intrastructure-requirements)
     - [Container Definition](#container-definition)
     - [Environment Variables](#environment-variables)
-  - [Allow ECS to Access to Secrets](#allow-ecs-to-access-to-secrets)
+  - [Allow ECS to Access Secrets](#allow-ecs-to-access-secrets)
   - [Create an ECS Service](#create-an-ecs-service)
     - [Environment](#environment)
     - [Deployment Configuration](#deployment-configuration)
@@ -88,6 +88,11 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
     - [Load Balancing](#load-balancing)
   - [Update Healthcheck settings](#update-healthcheck-settings)
   - [Restrict Public Access to ECS Service](#restrict-public-access-to-ecs-service)
+    - [Create Load Balancer Security Group](#create-load-balancer-security-group)
+      - [IPv4 vs. IPv6](#ipv4-vs-ipv6)
+      - [CIDR Blocks](#cidr-blocks)
+    - [Attach Security Group to Load Balancer](#attach-security-group-to-load-balancer)
+    - [Update ECS Security Group](#update-ecs-security-group)
 - [Setup DNS and SSL](#setup-dns-and-ssl)
 - [Setup Backend CI/CD](#setup-backend-cicd)
 
@@ -1056,7 +1061,7 @@ We're mainly using the ALB here for networking purposes, but it can do much more
 ### Intrastructure Requirements
 
 - Under Infrastructure Requirements, keep Fargate.
-  - Scale down the resources to .5 vCPU and 1GB Memory.  1 vCPU is equivalent to 1 CPU thread.  Strapi will work with .5 vCPU but I haven't tested it with .25.
+  - Scale down the resources to the minimum, .25 vCPU and .5 GB Memory.  This is [lower](https://docs.strapi.io/dev-docs/deployment) than what the Strapi docs call for, but seems to work for our limited usage.  You could always scale it up later.
   - Don't create a Task Role.
   - Let AWS create a Task Execution Role for you.
 
@@ -1069,7 +1074,6 @@ What are these roles?  The [Task Execution Role](https://docs.aws.amazon.com/Ama
 - In the container definition section, add a name for your container.
 - Use the URI of the image you uploaded, which you can find in ECR.  It should look like `<your repo id>.dkr.ecr.us-east-1.amazonaws.com/strapi-test:latest`.
 - Add a port mapping for 1337 on tcp, which is the port Strapi runs on.
-  - *****TODO** Can you remove port 80 or is it needed for the ALB healthcheck?
 - Match the CPU and Memory Hard and Soft limits to what you set above for the task: .5 vCPU and 1 GB.
 - Keep the other defaults.
 
@@ -1090,7 +1094,7 @@ Expand the environment variables dropdown.
 
 Click create!
 
-## Allow ECS to Access to Secrets
+## Allow ECS to Access Secrets
 
 Now we need to allow the Task Execution Role, which starts our tasks, access to the secrets in Secrets Manager.
 
@@ -1164,7 +1168,7 @@ Here's an example diagram from the [AWS docs on VPCs and Subnets](https://docs.a
 
 #### Security Groups
 
-[Security Groups](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-security-groups.html) function like network firewalls for resources in your VPC.  They permit or deny network traffic from certain sources to resources in the group on certain ports.  Here, for instance, we want to allow incoming traffic on port 1337 to our Strapi app.  For the permitted traffic source, we can specify specific IPs, IP ranges, or other Security Groups.
+[Security Groups](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-security-groups.html) function like network firewalls for resources in your VPC.  They permit or deny network traffic from certain sources to resources in the group on certain ports.  Here, for instance, we want to allow incoming traffic on port 1337 to our Strapi app, and block all other ports.  For the permitted traffic source, we can specify specific IPs, IP ranges, or other Security Groups.
 
 The ability to link together two Security Groups will allow us to require incoming traffic to flow through our load balancer.  The ECS Service's Security group will permit incoming traffic on port 1337 only from the load balancer's Security Group.
 
@@ -1204,7 +1208,7 @@ Load balancers perform health checks on the target group, regularly pinging the 
 
 ## Update Healthcheck settings
 
-We need to update our healthcheck settings because the ALB is expecting a code 200 response, but Strapi sends a an empty [204](https://www.webfx.com/web-development/glossary/http-status-codes/what-is-a-204-status-code/#:~:text=A%20204%20status%20code%20is%20used%20when%20the%20server%20successfully,such%20as%20a%20DELETE%20request.) response instead
+We need to update our healthcheck settings because the ALB is expecting a code 200 response, but Strapi sends an empty [204](https://www.webfx.com/web-development/glossary/http-status-codes/what-is-a-204-status-code/#:~:text=A%20204%20status%20code%20is%20used%20when%20the%20server%20successfully,such%20as%20a%20DELETE%20request.) response instead
 
 - Go to EC2, where we'll manage our Load Balancer and Security Groups.
 - Click Target Groups on the left-hand side.
@@ -1219,15 +1223,47 @@ We need to update our healthcheck settings because the ALB is expecting a code 2
 
 Next, let's require traffic to flow through the Load Balancer.
 
-- Still in EC2, select Security Groups on the left-hand side.
-- You should see 3 groups: the default VPC group, the Load Balancer's Security Group, and the ECS Service's Security Group.
+### Create Load Balancer Security Group
+
+- Still in EC2, select Security Groups on the left-hand side, and click the Create Security Group button.
+- Create an inbound rule allowing HTTPS traffic from a source of Anywhere-IPv4.
+- Create a second inbound rule allowing HTTPS traffic from a source of Anywhere-IPv6.
+- Leave the default Outbound rule in place, allowing all outbound traffic.
+- Click Create Security Group.
+
+![ALB security group](assets/alb-security-group.png)
+
+There are a couple new concepts in this section as well:
+
+#### IPv4 vs. IPv6
+
+[IPv4](https://levelup.gitconnected.com/how-to-tell-if-you-are-on-ipv4-or-ipv6-1f33d8a1bf06) is the older version of the IP protocol created in the 1980s, which most of the Internet still uses.  IPv6 is newer and was created to allow for many more IP numbers as the Internet grows. About [55% of Internet traffic](https://www.google.com/intl/en/ipv6/statistics.html) to Google was still on IPv4 as of late 2023. IPv6 isn't backwards compatible, so you need separate inbound rules for each protocol.
+
+#### CIDR Blocks
+
+[CIDR (Classless Inter-Domain Routing) Block notation](https://aws.amazon.com/what-is/cidr/) is used in AWS security groups for [matching IP address ranges](https://community.canvaslms.com/t5/Canvas-Resource-Documents/IP-Filtering-in-Canvas/ta-p/387089).  When you select a source of Anywhere-IPv4, AWS adds the IPv4 CIDR block for all IP addresses: `0.0.0.0/0`.  When you select a source of Anywhere-IPv6, AWS adds the IPv6 CIDR block for all IP addresses: `::/0`.  So here, we're matching all IP addresses for our inbound rules.
+
+### Attach Security Group to Load Balancer
+
+- Next, still within EC2, go to Load Balancers, and select you Load Balancer.
+- Go to the Security Tab, and Click Edit.
+- Attach the Security Group you just created to the Load Balancer.
+
+### Update ECS Security Group
+
+- Go back to Security Groups in EC2.
+- Now, you should see 3 groups: the default VPC group, the Load Balancer's Security Group we just created, and the ECS Service's Security Group.
 - Select the ECS Service's Security Group.
 - Edit the inbound rule on 1337.  Choose a custom source, then choose the Load Balancer's Security Group.
 - Click Save rules.
 
 ![ecs security group](assets/ecs-security-group.png)
 
+- Verify that you can't reach Strapi directly on its public IP.  To to ECS -> your Cluster -> your Service -> Tasks tab -> your Task -> Public IP on port 1337.
+
 # Setup DNS and SSL
+
+
 
 # Setup Backend CI/CD
 
