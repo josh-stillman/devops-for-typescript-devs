@@ -112,6 +112,17 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
   - [Infrastructure as Code](#infrastructure-as-code)
   - [Infrastructure as ***Code***](#infrastructure-as-code-1)
   - [Gameplan](#gameplan)
+- [Install Pulumi](#install-pulumi)
+- [Create Infrastructure Repo](#create-infrastructure-repo)
+  - [Create Pulumi account](#create-pulumi-account)
+  - [Follow the Prompts](#follow-the-prompts)
+  - [Git](#git)
+  - [Linting and Formatting](#linting-and-formatting)
+  - [Deploy Hello World Page](#deploy-hello-world-page)
+    - [Stack Outputs](#stack-outputs)
+- [Frontend DNS](#frontend-dns)
+  - [Pulumi Outputs](#pulumi-outputs)
+  - [Pulumi Stack Outputs](#pulumi-stack-outputs)
 
 
 # Introduction
@@ -1668,5 +1679,80 @@ Pulumi is an especially easy way to get started with IaC as a developer, since i
 ## Gameplan
 
 We're going to set up a second environment for our application, which we'll call Development.  When we push changes to the `dev` branch on the Frontend or Backend, our code will deploy to Development.  Much as we did through the console, we'll start by deploying our frontend, setting up frontend CI/CD, then our backend, then our backend CI/CD.  We'll reuse what we can from prior steps, such as our Route 53 domain and our ACM SSL certificate.
+
+# Install Pulumi
+
+Let's [install Pulumi](https://www.pulumi.com/docs/install/).  You can do so with [Homebrew](https://brew.sh/) with `brew install pulumi/tap/pulumi`.
+
+# Create Infrastructure Repo
+
+Create a new infrastructure directory, so that your directory structure looks like this:
+
+```
+devops-for-ts
+├── frontend
+└── api
+└── infrastructure
+```
+
+We'll start with one of Pulumi's starter templates to [deploy a static website to AWS](https://www.pulumi.com/templates/static-website/aws/).  In your `/infrastructure` directory, run `pulumi new static-website-aws-typescript`.
+
+## Create Pulumi account
+
+While Pulumi is open-source, it's also a SaaS company that will manage your infrastructure state for you.  We'll use Pulumi as our state manager here, but you can store your state elsewhere if you'd need to on a client project for security purposes.  The account is free.
+
+Sign up with your GitHub account, or create a new username and password if you wish.
+
+## Follow the Prompts
+
+- Set your region to `us-east-1`.
+- Name our stack the dev stack.  Think of Pulumi [stacks](***TODO*** link) as environments.  We'll be using the dev stack / environment for the rest of the tutorial.
+- Accept all other defaults.
+
+## Git
+
+- Setup a git repo by running `git init`.
+- Create a gitignore for the node modules: `echo "node_modules" > .gitignore`.
+- Add your first commit.
+- Create a [new GitHub repo](https://github.com/new) for your infrastructure.
+- Follow the instructions to add the git remote and push up.
+
+## Linting and Formatting
+
+- Let’s add linting while we’re at it.  Use my package!  Run `npx lintier`, select Node for your project type, and decline all other options.
+- Then run `npm run lint:fix`.
+  - You may find yourself having to add a lot of ignores for eslint.  You can extend the eslint config to turn these rules off.
+- Commit.
+
+## Deploy Hello World Page
+
+Run `pulumi up`, and watch Pulumi do its thing.  It will show you a preview of what it will do, and then ask you to confirm
+
+- Check out the outputs under `cdnUrl`.  Go there and verify you see the index.
+  - Creating the CloudFront distribution can take a few minutes.
+- Go to a non-existent page like `/asdf` and verify you see the error page.
+
+Success! 🎉
+
+### Stack Outputs
+
+The outputs you see after running `pulumi up`, like `cdnUrl`, are called [Stack Outputs](***TODO*** link).  They are the key pieces of information about your infrastructure, and can be used by other programs or other Pulumi stacks.
+
+In order to register a stack output, you must export the variable *from the root index.ts file*.  As you'll see later, if you want stack exports from other files, they must be re-exported from `index.ts`.
+
+# Frontend DNS
+
+## Pulumi Outputs
+
+## Pulumi Stack Outputs
+
+
+
+
+
+
+
+
+
 
 
