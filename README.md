@@ -109,6 +109,9 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
   - [Test](#test-1)
 - [Wrapping up Deploying Through the AWS Console](#wrapping-up-deploying-through-the-aws-console)
 - [Enter Pulumi](#enter-pulumi)
+  - [Infrastructure as Code](#infrastructure-as-code)
+  - [Infrastructure as ***Code***](#infrastructure-as-code-1)
+  - [Gameplan](#gameplan)
 
 
 # Introduction
@@ -1639,23 +1642,31 @@ Commit, push, and verify that the newsfeed works on your deployed frontend.
 
 We've come a long way!  We've deployed an entire fullstack application to AWS though the console.  Enjoy the moment.  You've earned it.  🎉
 
-But suppose you were then asked to stand up a second (or third, or fourth) environment for the app.  You'd probably panic if you thought you had to go through all that work in the console again!  😭  In the remainder of the course, we're going to see how Pulumi, an infrastructure as code tool, can help us streamline the process and get much more control over our cloud resources than we had using the Console.  It will make things like standing up and tearing down multiple environments much easier.
+But suppose you were then asked to stand up a second (or third, or fourth) environment for the app.  You'd probably panic if you thought you had to go through all that work in the console again!  😭  In the remainder of the course, we're going to see how Pulumi, an Infrastructure as Code tool, can help us streamline the process and get much more control over our cloud resources.  It will make things like standing up and tearing down multiple environments much easier for us.
 
 # Enter Pulumi
 
+Pulumi is an Infrastructure as Code (IaC) framework that will let us use TypeScript to create and manage cloud resources in AWS.  (Pulumi has bindings for other programming languages and the other major cloud providers as well.)
 
+## Infrastructure as Code
 
+[Infrastructure as Code](***TODO*** insert link) tools allow us to use code to define our cloud resources.  They offer much greater control and power over the point-and-click method or writing shell scripts to make API calls with a CLI.  Among the greatest benefits are:
 
+- ***Documentation***.  Imagine you had to write up all the instructions to deploy even the simple environment we just did through the console, for the benefit of your team and organization. 😬  I can assure you it wasn't so easy!  With the console, we're reliant on our faulty memories to document what we did, and list all of the many pieces of our infrastructure.  With IaC, the code serves as documentation of exactly what infrastructure was deployed.
+- ***Versioning***.  We get to use git with IaC!  This gives us a full history of the changes to our infrastructure, and all of the benefits we associate with git: code sharing, rollbacks, debugging, code-reviews, the ability to set up CI/CD pipeline for our infrastructure code, etc.
+- ***Repeatability***.  Modern software projects often involve multiple environments, such as Development, QA, UAT/Staging, Production, feature preview environments, etc.  Obviously, the point-and-click approach isn't scalable.  With IaC, spinning up a new environment is comparatively quite easy.  You'd just change some of the configuration variables and run your program!
+- ***Testability***.  Because our infrastructure is code, we can test it!  We can ensure that our organization's requirements (security, scalability, cost controls, etc.) are met before we deploy.
+- ***State Management***.  Even if we were to write shell scripts with calls to the AWS CLI, the script wouldn't know which infrastructure has already been deployed, and what infrastructure is new or needs to change. IaC tools keep track of the state of your infrastructure for you and determine which code changes need to be reflected in your cloud infrastructure.
+- ***Preventing Vendor Lock-in***.  Suppose Azure or Google Cloud was willing to cut us a huge deal on our bill.  How would we move our infrastructure if we relied on point-and-click or a proprietary tool like the AWS CLI?  IaC tools like Pulumi and Terraform are open-source and provide bindings for all the major cloud providers, making migrating between cloud providers much easier than it otherwise would be.
 
+## Infrastructure as ***Code***
 
+Traditional IaC tool like Terraform use YAML or JSON to define resources in a Domain-Specific Language.  In contrast, Pulumi lets us use a full-fledged programming language like TypeScript, allowing us to do things like create loops, functions, classes, and more.  We get to use all the tools we know and love as developers: our IDE with autocompletion, our type checker, our testing framework, our formatter and linter.  We get to create abstractions and encapsulations with classes and functions--abstractions that can be reused and serve as higher-level building blocks for your organization's infrastructure.  Pulumi's type definitions for cloud resources guide you in inputting all the required information, and show you all the possibilities at a glance.  And we can split our code into multiple files and directories, create helper functions, and more to keep our infrastructure code easy to follow.
 
+Pulumi is an especially easy way to get started with IaC as a developer, since it uses the tools we're already familiar with.
 
+## Gameplan
 
-
-
-
-
-
-
+We're going to set up a second environment for our application, which we'll call Development.  When we push changes to the `dev` branch on the Frontend or Backend, our code will deploy to Development.  Much as we did through the console, we'll start by deploying our frontend, setting up frontend CI/CD, then our backend, then our backend CI/CD.  We'll reuse what we can from prior steps, such as our Route 53 domain and our ACM SSL certificate.
 
 
