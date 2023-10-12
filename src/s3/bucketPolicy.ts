@@ -5,7 +5,7 @@ import { Distribution } from '@pulumi/aws/cloudfront';
 import { User } from '@pulumi/aws/iam';
 import { getARN } from '../utils/getARN';
 
-export const createBucketPolicyJSON = ({
+export const createBucketPolicyDocument = ({
   bucket,
   distribution,
   pipelineUser,
@@ -28,7 +28,7 @@ export const createBucketPolicyJSON = ({
         conditions: [
           {
             test: 'StringEquals',
-            values: [getARN(distribution)],
+            values: [distribution.arn],
             variable: 'AWS:SourceArn',
           },
         ],
