@@ -131,6 +131,12 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
     - [Unwrap the Certificate ARN](#unwrap-the-certificate-arn)
   - [Add SSL Certificate to CloudFront](#add-ssl-certificate-to-cloudfront)
   - [Add Stack Output for URL and Deploy](#add-stack-output-for-url-and-deploy)
+- [Restrict Public Access to s3](#restrict-public-access-to-s3)
+  - [Public Access Block](#public-access-block)
+  - [Add Bucket Policy](#add-bucket-policy)
+    - [Attach Policy to Bucket](#attach-policy-to-bucket)
+  - [Setup OAC](#setup-oac)
+  - [Deploy](#deploy)
 
 
 # Introduction
@@ -1894,11 +1900,130 @@ const cdn = new aws.cloudfront.Distribution('cdn', {
 export const domainURL = `https://${domainName}`;
 ```
 - Deploy with `pulumi up`.
-- Verify everything works.
+- Go to the URL and verify everything works.
 - Commit your code.
 
+# Restrict Public Access to s3
+
+As we did in the console, let's turn off public access to the s3 bucket, and setup a Bucket Policy and Origin Access Control to allow CloudFront to access it.
+
+## Public Access Block
+
+Edit the s3 bucket's `BucketPublicAccessBlock` to turn off public access.
+
+```ts
+// Configure public ACL block on the new S3 bucket
+const publicAccessBlock = new aws.s3.BucketPublicAccessBlock(
+  'public-access-block',
+  {
+    bucket: bucket.bucket,
+    blockPublicAcls: true, // block all direct access with these settings
+    blockPublicPolicy: true,
+    ignorePublicAcls: true,
+    restrictPublicBuckets: true,
+  }
+);
+```
+
+## Add Bucket Policy
+
+Add a helper function to generate the bucket policy JSON in `src/s3/bucketPolicy.ts`
+
+```ts
+export const createBucketPolicy = ({
+  bucket,
+  distribution,
+}: {
+  bucket: Bucket;
+  distribution: Distribution;
+}) =>
+  aws.iam.getPolicyDocumentOutput({
+    statements: [
+      {
+        principals: [
+          {
+            type: 'Service',
+            identifiers: ['cloudfront.amazonaws.com'],
+          },
+        ],
+        actions: ['s3:GetObject', 's3:ListBucket'],
+        resources: [bucket.arn, pulumi.interpolate`${bucket.arn}/*`],
+        conditions: [
+          {
+            test: 'StringEquals',
+            values: [distribution.arn],
+            variable: 'AWS:SourceArn',
+          },
+        ],
+      },
+    ],
+  });
+```
+
+Here, we're just translating the existing bucket policy JSON from the console into Pulumi's Policy Document API.  Some things to note:
+
+- We're unfortunately working with a lot of raw string values here, like `'cloudfront.amazonaws.com'` and `'s3:GetObject'`.  Pulumi is working on expanding its list of [enums](https://www.pulumi.com/blog/announcing-enum-support/) for AWS.  We could create our own if we reused them frequently.
+- When we need to interpolate a Pulumi Output, we can use `pulumi.interpolate`:
+
+  ```ts
+  pulumi.interpolate`${bucket.arn}/*`
+  ```
+
+### Attach Policy to Bucket
+
+Generate our bucket policy JSON with our helper function, and attach it to the bucket.
+
+```ts
+const bucketPolicyDocument = createBucketPolicyDocument({
+  bucket,
+  distribution: cdn,
+});
+
+const attachedBucketPolicy = new aws.s3.BucketPolicy('s3bucketPolicy', {
+  bucket: bucket.id,
+  policy: bucketPolicyDocument.json,
+});
+```
+
+## Setup OAC
+
+Create an Origin Access Control to let CloudFront access the non-public bucket.
 
 
+- Delete the `website` key from your s3 bucket.
+- Create an OAC
+
+```ts
+const OAC = new aws.cloudfront.OriginAccessControl('OAC', {
+  description: 'OAC for CDN to access bucket',
+  originAccessControlOriginType: 's3',
+  signingBehavior: 'always',
+  signingProtocol: 'sigv4',
+});
+  ```
+
+- Update the CloudFront distribution to use the OAC in `origins.originAccessControlId`.  Also set `defaultRootObject: 'index.html'`.
+
+```ts
+const cdn = new aws.cloudfront.Distribution('cdn', {
+  ...
+  origins: [
+    {
+      ...
+      originAccessControlId: OAC.id,
+    },
+  ],
+  ...
+  defaultRootObject: 'index.html',
+  ...
+});
+```
+
+## Deploy
+
+- Run `pulumi up` and deploy.
+- Verify you can reach the site through the URL.
+- Commit.
 
 
 
