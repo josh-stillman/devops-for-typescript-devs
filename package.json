@@ -12,10 +12,9 @@
     "prettier": "3.0.3"
   },
   "dependencies": {
-    "@pulumi/aws": "^6.0.2",
-    "@pulumi/awsx": "1.0.5",
-    "@pulumi/pulumi": "^3.49.0",
-    "@pulumi/synced-folder": "^0.0.9",
+    "@pulumi/aws": "6.5.0",
+    "@pulumi/awsx": "1.0.6",
+    "@pulumi/pulumi": "3.88.1",
     "typescript": "5.2.2"
   },
   "scripts": {
