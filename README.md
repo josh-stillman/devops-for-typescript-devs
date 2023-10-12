@@ -118,11 +118,19 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
   - [Follow the Prompts](#follow-the-prompts)
   - [Git](#git)
   - [Linting and Formatting](#linting-and-formatting)
+  - [Take a Look at the Code](#take-a-look-at-the-code)
+    - [Asynchronous Outputs and Inputs](#asynchronous-outputs-and-inputs)
+    - [Unwrapping Outputs](#unwrapping-outputs)
   - [Deploy Hello World Page](#deploy-hello-world-page)
     - [Stack Outputs](#stack-outputs)
-- [Frontend DNS](#frontend-dns)
-  - [Pulumi Outputs](#pulumi-outputs)
-  - [Pulumi Stack Outputs](#pulumi-stack-outputs)
+- [Frontend DNS and SSL](#frontend-dns-and-ssl)
+  - [Pulumi Configuration](#pulumi-configuration)
+  - [Add Domain to CloudFront Distribution](#add-domain-to-cloudfront-distribution)
+  - [Add Route 53 Record for Subdomain](#add-route-53-record-for-subdomain)
+  - [Get Existing SSL Certificate](#get-existing-ssl-certificate)
+    - [Unwrap the Certificate ARN](#unwrap-the-certificate-arn)
+  - [Add SSL Certificate to CloudFront](#add-ssl-certificate-to-cloudfront)
+  - [Add Stack Output for URL and Deploy](#add-stack-output-for-url-and-deploy)
 
 
 # Introduction
@@ -1661,24 +1669,24 @@ Pulumi is an Infrastructure as Code (IaC) framework that will let us use TypeScr
 
 ## Infrastructure as Code
 
-[Infrastructure as Code](***TODO*** insert link) tools allow us to use code to define our cloud resources.  They offer much greater control and power over the point-and-click method or writing shell scripts to make API calls with a CLI.  Among the greatest benefits are:
+[Infrastructure as Code](https://www.pulumi.com/what-is/what-is-infrastructure-as-code/) tools allow us to use code to define our cloud resources.  The code you write represents the desired state of your infrastructure.  When you deploy, the framework compares the desired state to the existing state, then makes the required changes in the cloud.  These tools offer much greater control and power over the point-and-click method or writing shell scripts to make API calls with a CLI.  Among the greatest benefits are:
 
 - ***Documentation***.  Imagine you had to write up all the instructions to deploy even the simple environment we just did through the console, for the benefit of your team and organization. 😬  I can assure you it wasn't so easy!  With the console, we're reliant on our faulty memories to document what we did, and list all of the many pieces of our infrastructure.  With IaC, the code serves as documentation of exactly what infrastructure was deployed.
-- ***Versioning***.  We get to use git with IaC!  This gives us a full history of the changes to our infrastructure, and all of the benefits we associate with git: code sharing, rollbacks, debugging, code-reviews, the ability to set up CI/CD pipeline for our infrastructure code, etc.
+- ***Versioning***.  We get to use git with IaC!  This gives us a full history of the changes to our infrastructure, and all of the benefits we associate with git: code sharing, rollbacks, debugging, code-reviews, the ability to set up [CI/CD pipeline](https://www.pulumi.com/docs/using-pulumi/continuous-delivery/) for our infrastructure code, etc.
 - ***Repeatability***.  Modern software projects often involve multiple environments, such as Development, QA, UAT/Staging, Production, feature preview environments, etc.  Obviously, the point-and-click approach isn't scalable.  With IaC, spinning up a new environment is comparatively quite easy.  You'd just change some of the configuration variables and run your program!
-- ***Testability***.  Because our infrastructure is code, we can test it!  We can ensure that our organization's requirements (security, scalability, cost controls, etc.) are met before we deploy.
+- ***Testability***.  Because our infrastructure is code, we can test it!  We can ensure that our organization's requirements (security, scalability, best practices, cost controls, etc.) are met before we deploy.
 - ***State Management***.  Even if we were to write shell scripts with calls to the AWS CLI, the script wouldn't know which infrastructure has already been deployed, and what infrastructure is new or needs to change. IaC tools keep track of the state of your infrastructure for you and determine which code changes need to be reflected in your cloud infrastructure.
-- ***Preventing Vendor Lock-in***.  Suppose Azure or Google Cloud was willing to cut us a huge deal on our bill.  How would we move our infrastructure if we relied on point-and-click or a proprietary tool like the AWS CLI?  IaC tools like Pulumi and Terraform are open-source and provide bindings for all the major cloud providers, making migrating between cloud providers much easier than it otherwise would be.
+- ***Preventing Vendor Lock-in***.  Suppose Azure or Google Cloud was willing to cut us a huge deal on our bill.  How would we move our infrastructure if we relied on the point-and-click method or a proprietary tool like the AWS CLI?  IaC tools like Pulumi and Terraform provide bindings for all the major cloud providers, making migrating between cloud providers comparatively much easier.
 
 ## Infrastructure as ***Code***
 
-Traditional IaC tool like Terraform use YAML or JSON to define resources in a Domain-Specific Language.  In contrast, Pulumi lets us use a full-fledged programming language like TypeScript, allowing us to do things like create loops, functions, classes, and more.  We get to use all the tools we know and love as developers: our IDE with autocompletion, our type checker, our testing framework, our formatter and linter.  We get to create abstractions and encapsulations with classes and functions--abstractions that can be reused and serve as higher-level building blocks for your organization's infrastructure.  Pulumi's type definitions for cloud resources guide you in inputting all the required information, and show you all the possibilities at a glance.  And we can split our code into multiple files and directories, create helper functions, and more to keep our infrastructure code easy to follow.
+[Traditional IaC tool like Terraform](https://www.pulumi.com/docs/concepts/vs/terraform/) use JSON or YAML to define resources in a Domain-Specific Language.  In contrast, Pulumi lets us use a full-fledged programming language like TypeScript, allowing us to do things like create loops, functions, classes, and more.  We get to use all the tools we know and love as developers: our IDE with autocompletion, our type checker, our testing framework, our formatter and linter.  We get to create abstractions and encapsulations with classes and functions--abstractions that can be reused and serve as higher-level building blocks for your organization's infrastructure.  Pulumi's type definitions for cloud resources guide you in inputting all the required information, and show you all the possibilities at a glance.  And we can do things like split our code into multiple files and directories and  create helper functions to keep our infrastructure code easy to follow.
 
 Pulumi is an especially easy way to get started with IaC as a developer, since it uses the tools we're already familiar with.
 
 ## Gameplan
 
-We're going to set up a second environment for our application, which we'll call Development.  When we push changes to the `dev` branch on the Frontend or Backend, our code will deploy to Development.  Much as we did through the console, we'll start by deploying our frontend, setting up frontend CI/CD, then our backend, then our backend CI/CD.  We'll reuse what we can from prior steps, such as our Route 53 domain and our ACM SSL certificate.
+We're going to set up a second environment for our application, which we'll call Development.  Much as we did through the console, we'll start by deploying our frontend, setting up frontend CI/CD, then our backend, and then our backend CI/CD.  We'll reuse what we can from prior steps, such as our Route 53 domain and our ACM SSL certificate.
 
 # Install Pulumi
 
@@ -1699,34 +1707,74 @@ We'll start with one of Pulumi's starter templates to [deploy a static website t
 
 ## Create Pulumi account
 
-While Pulumi is open-source, it's also a SaaS company that will manage your infrastructure state for you.  We'll use Pulumi as our state manager here, but you can store your state elsewhere if you'd need to on a client project for security purposes.  The account is free.
+While the Pulumi framework is open-source, the Pulumi company offers a Saas product that will manage your infrastructure state for you.  We'll use Pulumi's free account as our state manager here.  On a production application, Pulumi lets you store your state elsewhere if you'd need to for security purposes.
 
 Sign up with your GitHub account, or create a new username and password if you wish.
 
 ## Follow the Prompts
 
 - Set your region to `us-east-1`.
-- Name our stack the dev stack.  Think of Pulumi [stacks](***TODO*** link) as environments.  We'll be using the dev stack / environment for the rest of the tutorial.
+- Keep the default `dev` stack.  Think of Pulumi [stacks](https://www.pulumi.com/docs/concepts/stack/) as environments.  We'll be using the `dev` stack / environment for the rest of the tutorial.
 - Accept all other defaults.
 
 ## Git
 
 - Setup a git repo by running `git init`.
-- Create a gitignore for the node modules: `echo "node_modules" > .gitignore`.
+- Create a `.gitignore` for the node modules: `echo "node_modules" > .gitignore`.
 - Add your first commit.
 - Create a [new GitHub repo](https://github.com/new) for your infrastructure.
 - Follow the instructions to add the git remote and push up.
 
 ## Linting and Formatting
 
-- Let’s add linting while we’re at it.  Use my package!  Run `npx lintier`, select Node for your project type, and decline all other options.
+- Let’s add linting while we’re at it.  [Use my package!](https://www.youtube.com/watch?v=aDTwO0TlwOU) Run `npx lintier`, select Node for your project type, and decline all other options.
 - Then run `npm run lint:fix`.
   - You may find yourself having to add a lot of ignores for eslint.  You can extend the eslint config to turn these rules off.
 - Commit.
 
+## Take a Look at the Code
+
+Let's take a look at the starter code.
+- It's creating an s3 bucket for us and configuring it.
+```ts
+// Create an S3 bucket and configure it as a website.
+const bucket = new aws.s3.Bucket("bucket", {
+    website: {
+        indexDocument: indexDocument,
+        errorDocument: errorDocument,
+    },
+});
+```
+- It's uploading some static files to the bucket through a synced directory.
+- And it's setting up a CloudFront distribution, and pointing it at the bucket.
+```typescript
+// Create a CloudFront CDN to distribute and cache the website.
+const cdn = new aws.cloudfront.Distribution("cdn", {
+  origins: [{
+      originId: bucket.arn,
+      domainName: bucket.websiteEndpoint,
+  }],
+  ...
+});
+  ```
+
+### Asynchronous Outputs and Inputs
+
+Notice how the *output* of one step, like creating the s3 bucket, is passed as in *input* to the next step, like creating the CloudFront distribution.  This concept of [outputs and inputs](https://www.pulumi.com/docs/concepts/inputs-outputs/) is key to how Pulumi works.  It's how we hook our resources up with each other.  And it's what allows Pulumi to infer a dependency graph and determine in which order resources must be created when we run `pulumi up`.
+
+Almost everything Pulumi does is asynchronous.  Pulumi needs to use the AWS CLI to create and modify cloud resources, and has to wait for those API calls to settle.  Afterwards, other Pulumi resources then can access information about the newly created resources.
+
+Pulumi [Outputs](https://www.pulumi.com/docs/concepts/inputs-outputs/) are a lot like JavaScript promises: their value isn't known until runtime, so the underlying value cannot be accessed directly.  For example, our s3 bucket has a property of `bucket.arn`, which isn't known until the bucket is created. If you hover this property, you'll see it has the type of `pulumi.Output<string>`.  We can *usually* pass outputs whenever Pulumi is expecting an Input, and we should do so when possible.
+
+### Unwrapping Outputs
+
+Sometimes, however, Pulumi is expecting a primitive value like a string.  We can still work with our Output by unwrapping it.  We do so with some Pulumi helper functions.  We can get a reference to the string value of the bucket ARN by calling `pulumi.output(bucket).apply(b => b.arn)`.  This works more or less like `.then` for JavaScript promises.
+
 ## Deploy Hello World Page
 
-Run `pulumi up`, and watch Pulumi do its thing.  It will show you a preview of what it will do, and then ask you to confirm
+Run `pulumi up`, and watch Pulumi do its thing.  It will show you a preview of what it will do, and then ask you to confirm.
+
+![pulumi up](assets/pulumi-up-hello-world.png)
 
 - Check out the outputs under `cdnUrl`.  Go there and verify you see the index.
   - Creating the CloudFront distribution can take a few minutes.
@@ -1736,15 +1784,119 @@ Success! 🎉
 
 ### Stack Outputs
 
-The outputs you see after running `pulumi up`, like `cdnUrl`, are called [Stack Outputs](***TODO*** link).  They are the key pieces of information about your infrastructure, and can be used by other programs or other Pulumi stacks.
+The outputs you see after running `pulumi up`, like `cdnUrl`, are called [Stack Outputs](https://www.pulumi.com/learn/building-with-pulumi/stack-outputs/).  They are the key pieces of information about your infrastructure, and can be used by other programs or other Pulumi stacks.
 
 In order to register a stack output, you must export the variable *from the root index.ts file*.  As you'll see later, if you want stack exports from other files, they must be re-exported from `index.ts`.
 
-# Frontend DNS
+# Frontend DNS and SSL
 
-## Pulumi Outputs
+Let’s serve the site from a dev subdomain: `https://dev.jss.computer` for me.
 
-## Pulumi Stack Outputs
+## Pulumi Configuration
+
+- Add configuration for our domain and subdomain to our stack.  Run `pulumi config set domain jss.computer && pulumi config set subdomain dev`.
+- Check out `Pulumi.dev.yaml` and you'll see these variables added.  This is where our configuration for our dev stack lives.  You can edit this file directly as well.
+  - If we were to use our Pulumi program to set up another environment, like QA, we'd do so through another set of configuration variables in a `Pulumi.qa.yaml` file.
+- Access the config variables in your code.  Add these lines in `index.ts`.
+
+```typescript
+const domain = config.require("domain");
+const subdomain = config.require("subdomain");
+const domainName = `${subdomain}.${domain}`;
+```
+
+## Add Domain to CloudFront Distribution
+
+Now add the domain to our our CloudFront distribution:
+
+```ts
+const cdn = new aws.cloudfront.Distribution('cdn', {
+  aliases: [domainName],
+  ...
+});
+```
+## Add Route 53 Record for Subdomain
+
+Let's create a DNS record for our dev subdomain:
+
+```ts
+// Create a DNS A record to point to the CDN for the subdomain.
+const zone = aws.route53.getZoneOutput({ name: domain });
+
+const record = new aws.route53.Record(domainName, {
+  name: subdomain,
+  zoneId: zone.zoneId,
+  type: 'A',
+  aliases: [
+    {
+      name: cdn.domainName,
+      zoneId: cdn.hostedZoneId,
+      evaluateTargetHealth: true,
+    },
+  ],
+});
+```
+
+Hovering over each key in the config can be your friend.  Here we have two `zoneId` keys, which is a little confusing.  Hovering over them explains that the first is for your Route 53 Hosted Zone, and the second is for your CloudFront distribution.  Thanks, TypeScript!
+
+## Get Existing SSL Certificate
+
+We already created our SSL certificate in ACM, and we set it up to work for all subdomains with the wildcard record.  Let's get a reference to it and use it in our dev CloudFront distribution.
+
+Pulumi provides two ways to reference already-existing resources.  We could [import]() the resource, meaning that Pulumi would now manage it.  Or we can use a [getter](https://www.pulumi.com/docs/concepts/resources/get/) to simply get a reference without turning over control to our Pulumi program.  We'll use a getter here.
+
+This is a good opportunity to use some helper functions!  Create a new file in a new directory: `src/acm/getCertificate.ts`.  We'll write a helper using the [`getCertificate` function](https://www.pulumi.com/registry/packages/aws/api-docs/acm/getcertificate/).
+
+```ts
+import * as aws from '@pulumi/aws';
+
+export const getExistingCertificate = (domain: string) =>
+  aws.acm.getCertificate({
+    domain,
+    mostRecent: true,
+    types: ['AMAZON_ISSUED'],
+  });
+```
+
+This function gets the most recent AWS-issue ACM certificate associated with our domain.
+
+### Unwrap the Certificate ARN
+
+This function returns a promise (which is a bit unusual, since generally we'll be working with Pulumi Outputs).  Promises, like Outputs, can be unwrapped with `pulumi.output().apply()`.  Let's write another helper function to get the unwrapped ARN from a resource when we need it.  In `src/utils/getARN.ts`, add this helper:
+
+```ts
+export const getARN = (awsThingy: any) =>
+  pulumi.output(awsThingy).apply(t => t?.arn);
+```
+
+You'll notice the `any` here.  The Pulumi type definitions are generally pretty good, but they are a work in progress.  Here, the argument to the `pulumi.output()` function is typed as `any`, so we'll use Pulumi's types.
+
+## Add SSL Certificate to CloudFront
+
+Use the helpers we wrote to add the certificate to the CloudFront distribution.
+
+```ts
+const certificate = getExistingCertificate(domain);
+
+const cdn = new aws.cloudfront.Distribution('cdn', {
+  ...
+  viewerCertificate: {
+    cloudfrontDefaultCertificate: false,
+    acmCertificateArn: getARN(certificate),
+    sslSupportMethod: 'sni-only', // avoiding extra charges
+  },
+});
+```
+## Add Stack Output for URL and Deploy
+
+- Export the url.
+```ts
+export const domainURL = `https://${domainName}`;
+```
+- Deploy with `pulumi up`.
+- Verify everything works.
+- Commit your code.
+
 
 
 
