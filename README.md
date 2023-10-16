@@ -2164,6 +2164,11 @@ Run `pulumi up` and test.  You can test by going to `/index` and you should see 
 
 # A Note on Pulumi Refresh
 
+We've been making a lot of changes to our code and repeatedly running `pulumi up`.  I found that Pulumi's state can get out of sync with the state of our cloud resources with repeated edits like these.
+
+You can fix this by running `pulumi refresh`, which will [reset Pulumi's state](https://www.pulumi.com/blog/repairing-state-with-pulumi-refresh/) to match the actual state of your cloud resources.
+
+
 # CI/CD
 
 Let's get our pipeline set up so we can get our actual code deployed.
