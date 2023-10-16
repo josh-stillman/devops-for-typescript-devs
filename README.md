@@ -50,6 +50,7 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
   - [Create Function](#create-function)
   - [Create Role](#create-role)
   - [Create Trigger](#create-trigger)
+    - [Origin vs. Viewer Request Triggers](#origin-vs-viewer-request-triggers)
   - [Test it](#test-it)
 - [Frontend CI/CD pipeline](#frontend-cicd-pipeline)
   - [Create Pipeline User](#create-pipeline-user)
@@ -137,6 +138,18 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
     - [Attach Policy to Bucket](#attach-policy-to-bucket)
   - [Setup OAC](#setup-oac)
   - [Deploy](#deploy)
+- [Add Lambda@Edge Routing](#add-lambdaedge-routing)
+  - [Add Handler Function](#add-handler-function)
+  - [Add permissions](#add-permissions)
+  - [Create Lambda](#create-lambda)
+  - [Attach Function to CloudFront](#attach-function-to-cloudfront)
+  - [Deploy and Test](#deploy-and-test)
+- [A Note on Pulumi Refresh](#a-note-on-pulumi-refresh)
+- [CI/CD](#cicd)
+  - [Delete Bucket Sync](#delete-bucket-sync)
+  - [Create Pipeline User](#create-pipeline-user-1)
+  - [Setup GitHub Actions Environments](#setup-github-actions-environments)
+  - [Push Your Code](#push-your-code)
 
 
 # Introduction
@@ -723,6 +736,12 @@ Now let's deploy the function to the edge.  On your function page, click the Add
 - Select Origin Request.
 
 ![deploy to lambda@edge](assets/deploy-to-lambda-edge.png)
+
+### Origin vs. Viewer Request Triggers
+
+Viewer requests are executed for every request around the world.  They're good for things like [localization](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-how-to-choose-event.html) (e.g., adding a language abbreviation to the url).  Origin requests are executed only once at the origin (here, our s3 bucket), and are good for use cases where we want to affect all requests around the world.
+
+Here, we want an origin request.  We want all requests globally for a given url to be rewritten to access the correct HTML file.
 
 ## Test it
 
@@ -1713,7 +1732,7 @@ We'll start with one of Pulumi's starter templates to [deploy a static website t
 
 ## Create Pulumi account
 
-While the Pulumi framework is open-source, the Pulumi company offers a Saas product that will manage your infrastructure state for you.  We'll use Pulumi's free account as our state manager here.  On a production application, Pulumi lets you store your state elsewhere if you'd need to for security purposes.
+While the Pulumi framework is open-source, the Pulumi company offers a SaaS product that will manage your infrastructure state for you.  We'll use Pulumi's free account as our state manager here.  Pulumi lets you store your state elsewhere if you'd need to for security purposes.
 
 Sign up with your GitHub account, or create a new username and password if you wish.
 
@@ -1768,7 +1787,7 @@ const cdn = new aws.cloudfront.Distribution("cdn", {
 
 Notice how the *output* of one step, like creating the s3 bucket, is passed as in *input* to the next step, like creating the CloudFront distribution.  This concept of [outputs and inputs](https://www.pulumi.com/docs/concepts/inputs-outputs/) is key to how Pulumi works.  It's how we hook our resources up with each other.  And it's what allows Pulumi to infer a dependency graph and determine in which order resources must be created when we run `pulumi up`.
 
-Almost everything Pulumi does is asynchronous.  Pulumi needs to use the AWS CLI to create and modify cloud resources, and has to wait for those API calls to settle.  Afterwards, other Pulumi resources then can access information about the newly created resources.
+Almost everything Pulumi does is asynchronous.  Pulumi needs to use the AWS CLI to create and modify cloud resources, and has to wait for those API calls to settle.  Afterwards, other Pulumi resources then can access information about the newly created resources.  It manages these async calls through Outputs.
 
 Pulumi [Outputs](https://www.pulumi.com/docs/concepts/inputs-outputs/) are a lot like JavaScript promises: their value isn't known until runtime, so the underlying value cannot be accessed directly.  For example, our s3 bucket has a property of `bucket.arn`, which isn't known until the bucket is created. If you hover this property, you'll see it has the type of `pulumi.Output<string>`.  We can *usually* pass outputs whenever Pulumi is expecting an Input, and we should do so when possible.
 
@@ -2025,7 +2044,137 @@ const cdn = new aws.cloudfront.Distribution('cdn', {
 - Verify you can reach the site through the URL.
 - Commit.
 
+# Add Lambda@Edge Routing
 
+Next, lets add the Lambda@Edge function to handle the nested routes.
+
+## Add Handler Function
+
+We'll copy the function we wrote early, but add some TypeScript types.
+
+- Install the community AWS Lambda types with `npm i -DE @types/aws-lambda`.  Pulumi's built-in types don't seem complete for our use case.
+- Create the function in `src/lambda@edge/requestRewriter.ts`;
+```ts
+const requestRewriterHandler = (
+  event: lambda.CloudFrontRequestEvent,
+  context: lambda.Context,
+  callback: lambda.Callback
+) => {
+  // Extract the request from the CloudFront event that is sent to Lambda@Edge
+  const request = event.Records[0].cf.request;
+
+  // Extract the URI from the request
+  const oldUri = request.uri;
+
+  // Match any route after the final slash without a file extension, and append .html
+  if (oldUri.match(/\/[^/.]+$/)) {
+    const newUri = oldUri + '.html';
+    request.uri = newUri;
+  }
+
+  // Return to CloudFront
+  return callback(null, request);
+};
+```
+
+## Add permissions
+
+We need to set up a role for our Edge Lambda with the required permissions.  There are a few moving parts here, some of which were obscured by the console:
+
+- We create a role that the Lambda Function will use.
+- This role has [trust relationships](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-edge-permissions.html) that allow the AWS Lambda Service and CloudFront's Edge Lambda Service to assume the role in order to execute the function.  This is the `assumeRolePolicy` key below, and was set up in the Trust Relationships tab in the console.
+- The role also has the privileges associated with the [AWSLambdaBasicExecutionRole](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AWSLambdaBasicExecutionRole.html) managed policy provided by AWS.  The naming is confusing, since it's called a "Role" but is really a "[Policy](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_managed-vs-inline.html#aws-managed-policies)," i.e., a set of permissions.  This is the set of permissions that the Lambda needs to do things like [write logs](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/edge-functions-logs.html) to AWS's log service, CloudWatch.
+- We'll attach this role to the Lambda Function when we create it.
+
+```ts
+const name = 'RewriterLambdaEdge';
+
+const role = new aws.iam.Role(`${name}-Role`, {
+  assumeRolePolicy: {
+    Version: '2012-10-17',
+    Statement: [
+      {
+        Action: 'sts:AssumeRole',
+        Principal: aws.iam.Principals.LambdaPrincipal,
+        Effect: 'Allow',
+      },
+      {
+        Action: 'sts:AssumeRole',
+        Principal: aws.iam.Principals.EdgeLambdaPrincipal,
+        Effect: 'Allow',
+      },
+    ],
+  },
+});
+
+const rolePolicyAttachment = new aws.iam.RolePolicyAttachment(
+  `${name}-RolePolicyAttachment`,
+  {
+    role,
+    policyArn: aws.iam.ManagedPolicies.AWSLambdaBasicExecutionRole,
+  }
+);
+```
+
+## Create Lambda
+
+Now, we can create our Lambda function and associate the handler callback we wrote and the role we created.
+
+```ts
+
+// must be in us-east-1.  This is set in dev.yaml as well, but belt + suspenders
+const awsUsEast1 = new aws.Provider('us-east-1', { region: 'us-east-1' });
+
+export const requestRewriterLambda = new aws.lambda.CallbackFunction(
+  `${name}-Function`,
+  {
+    publish: true,
+    role,
+    timeout: 5,
+    callback: requestRewriterHandler,
+  },
+  { provider: awsUsEast1 }
+);
+```
+
+We're explicitly setting the region here, overriding any other region that might be set in the YAML config files, because Edge Lambdas must be located in `us-east-1` where CloudFront is housed.
+
+## Attach Function to CloudFront
+
+We're now ready to attach the Edge Lambda to our CloudFront distribution.  Recall that we want an [origin request](#origin-vs-viewer-request-triggers) event trigger.
+
+```ts
+const cdn = new aws.cloudfront.Distribution('cdn', {
+  ...
+  defaultCacheBehavior: {
+    ...
+    lambdaFunctionAssociations: [
+      {
+        eventType: 'origin-request',
+        lambdaArn: requestRewriterLambda.qualifiedArn,
+      },
+    ],
+  ...
+});
+```
+
+## Deploy and Test
+
+Run `pulumi up` and test.  You can test by going to `/index` and you should see the `index.html` file.
+
+# A Note on Pulumi Refresh
+
+# CI/CD
+
+Let's get our pipeline set up so we can get our actual code deployed.
+
+## Delete Bucket Sync
+
+## Create Pipeline User
+
+## Setup GitHub Actions Environments
+
+## Push Your Code
 
 
 
