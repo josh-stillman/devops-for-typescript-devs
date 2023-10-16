@@ -59,7 +59,7 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
     - [Create Access Key](#create-access-key)
   - [Update s3 Bucket Policy](#update-s3-bucket-policy)
   - [Create the GitHub Action](#create-the-github-action)
-    - [Add Secrets to GitHub Repo](#add-secrets-to-github-repo)
+    - [Add Secrets to Frontend GitHub Repo](#add-secrets-to-frontend-github-repo)
     - [Push and Test](#push-and-test)
   - [Summing up the Frontend](#summing-up-the-frontend)
 - [Setup Strapi Locally](#setup-strapi-locally)
@@ -102,7 +102,7 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
     - [Create Access Key](#create-access-key-1)
   - [Commit Task Definition](#commit-task-definition)
   - [Add GitHub Action](#add-github-action)
-  - [Add Secrets to GitHub](#add-secrets-to-github)
+  - [Add Backend Secrets to GitHub](#add-backend-secrets-to-github)
   - [Test](#test)
 - [Call API from the Frontend](#call-api-from-the-frontend)
   - [Create Newsfeed component](#create-newsfeed-component)
@@ -145,11 +145,21 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
   - [Attach Function to CloudFront](#attach-function-to-cloudfront)
   - [Deploy and Test](#deploy-and-test)
 - [A Note on Pulumi Refresh](#a-note-on-pulumi-refresh)
-- [CI/CD](#cicd)
+  - [A note on editing resource names](#a-note-on-editing-resource-names)
+- [Dev Frontend CI/CD](#dev-frontend-cicd)
   - [Delete Bucket Sync](#delete-bucket-sync)
   - [Create Pipeline User](#create-pipeline-user-1)
+  - [Update Bucket Policy](#update-bucket-policy-1)
   - [Setup GitHub Actions Environments](#setup-github-actions-environments)
-  - [Push Your Code](#push-your-code)
+    - [Setup Production](#setup-production)
+    - [Setup Dev](#setup-dev)
+  - [Extract Reusable Workflow](#extract-reusable-workflow)
+  - [Setup Calling Workflows](#setup-calling-workflows)
+  - [Show Current Environment on Frontend](#show-current-environment-on-frontend)
+  - [Push Your Code and Test](#push-your-code-and-test)
+    - [Update error page](#update-error-page)
+- [Wrapping up Pulumi Frontend Code](#wrapping-up-pulumi-frontend-code)
+- [Checkout the Pulumi ECS Starter](#checkout-the-pulumi-ecs-starter)
 
 
 # Introduction
@@ -739,7 +749,7 @@ Now let's deploy the function to the edge.  On your function page, click the Add
 
 ### Origin vs. Viewer Request Triggers
 
-Viewer requests are executed for every request around the world.  They're good for things like [localization](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-how-to-choose-event.html) (e.g., adding a language abbreviation to the url).  Origin requests are executed only once at the origin (here, our s3 bucket), and are good for use cases where we want to affect all requests around the world.
+Viewer requests are executed for every request around the world.  They're good for things like [localization](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-how-to-choose-event.html) (e.g., adding a language abbreviation to the url).  Origin requests are executed only once for all requests to a particular path, and are good for use cases where we want to affect all requests around the world.
 
 Here, we want an origin request.  We want all requests globally for a given url to be rewritten to access the correct HTML file.
 
@@ -905,7 +915,7 @@ Here's what this workflow is doing:
 
 Commit this file.  But before pushing it up, we need to add our secrets to our GitHub repo.
 
-### Add Secrets to GitHub Repo
+### Add Secrets to Frontend GitHub Repo
 
 - In your GitHub repo, go to Settings -> Security -> Secrets and variables -> Actions
 - We need to add 4 variables:
@@ -1549,7 +1559,7 @@ You'll need to edit the `env:` block in the action with the following:
 
 You can keep the ECS_TASK_DEFINITION variable as `.aws/task-definition.json`, which we added previously.
 
-## Add Secrets to GitHub
+## Add Backend Secrets to GitHub
 
 - In your GitHub repo, go to Settings -> Security -> Secrets and variables -> Actions
 - Add the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` for the backend pipeline user, which you copied and saved earlier.
@@ -2141,7 +2151,7 @@ We're explicitly setting the region here, overriding any other region that might
 
 ## Attach Function to CloudFront
 
-We're now ready to attach the Edge Lambda to our CloudFront distribution.  Recall that we want an [origin request](#origin-vs-viewer-request-triggers) event trigger.
+We're now ready to attach the Edge Lambda to our CloudFront distribution.  Recall that we want an [origin request](#origin-vs-viewer-request-triggers) event trigger.  We use the `qualifiedArn`, which includes the Lambda version number.
 
 ```ts
 const cdn = new aws.cloudfront.Distribution('cdn', {
@@ -2162,28 +2172,278 @@ const cdn = new aws.cloudfront.Distribution('cdn', {
 
 Run `pulumi up` and test.  You can test by going to `/index` and you should see the `index.html` file.
 
+Don't forget to commit after you have successfully run `pulumi up`!
+
+If you'd like to learn a bit more about Lambda@Edge with Pulumi, check out this [video](https://www.youtube.com/watch?v=ZWegAYQ0uwo&ab_channel=PulumiTV) and [repo](https://github.com/pulumi/get.pulumi.com/blob/master/infrastructure/requestRewriter.ts).
+
 # A Note on Pulumi Refresh
 
-We've been making a lot of changes to our code and repeatedly running `pulumi up`.  I found that Pulumi's state can get out of sync with the state of our cloud resources with repeated edits like these.
+We've been making a lot of changes to our infrastructure code and repeatedly running `pulumi up`.  I found that Pulumi's state can get out of sync with the state of our cloud resources with repeated edits like these.
 
 You can fix this by running `pulumi refresh`, which will [reset Pulumi's state](https://www.pulumi.com/blog/repairing-state-with-pulumi-refresh/) to match the actual state of your cloud resources.
 
+## A note on editing resource names
 
-# CI/CD
+Most resources we create with Pulumi have a [`name` property](https://www.pulumi.com/docs/concepts/resources/names/).  This is the unique identifier for the resource, called the "logical name".  Pulumi will append some random characters to the end to construct the "physical name" of the resource in the cloud.  It does this to prevent naming collisions when you create multiple stacks from the same Pulumi program.  If you examine your resources in the console you'll see how Pulumi creates the physical names.
+
+Unlike many other changes to resources, Pulumi treats changes to the name property as requests to delete the old resource and create a brand new one.  This can be useful if you find yourself stuck in a bad state after lots of edits to your resources.
+
+# Dev Frontend CI/CD
 
 Let's get our pipeline set up so we can get our actual code deployed.
 
 ## Delete Bucket Sync
 
+Delete the synced folder for our s3 bucket, to stop uploading files to the bucket every time we run `pulumi up`.  We'll use our git repo and pipeline to manage uploading new files going forward.
+
+Delete this:
+
+```ts
+// Use a synced folder to manage the files of the website.
+const bucketFolder = new synced_folder.S3BucketFolder("bucket-folder", {
+  ...
+});
+```
+
 ## Create Pipeline User
+
+We need to create a pipeline user with the correct permissions to delete the files in the dev bucket and upload new files, as well as invalidate our dev CloudFront distribution.
+
+In `src/iam/pipelineUser.ts`, add a function to create the user.
+
+```ts
+export const createFrontendPipelineUser = (
+  bucket: Bucket,
+  distribution: Distribution
+) => {
+  const policyJSON = aws.iam.getPolicyDocumentOutput({
+    statements: [
+      {
+        actions: [
+          's3:PutObject',
+          's3:ListBucket',
+          's3:DeleteObject',
+          'cloudfront:CreateInvalidation',
+        ],
+        resources: [bucket.arn, distribution.arn],
+      },
+    ],
+  });
+
+  const policy = new aws.iam.Policy('Dev-FE-Pipeline', {
+    policy: policyJSON.json,
+  });
+
+  const user = new aws.iam.User('Dev-FE-Pipeline');
+
+  const policyAttachment = new aws.iam.PolicyAttachment('Dev-FE-Pipeline', {
+    users: [user],
+    policyArn: policy.arn,
+  });
+
+  return user; // needed for altering the bucket policy
+};
+```
+
+Here, we:
+
+- pass in our s3 bucket and CloudFront distribution,
+- create a JSON policy document with the necessary permissions scoped to those resources, using Pulumi's `aws.iam.getPolicyDocumentOutput` helper function,
+- transform the policy document into a Policy object in AWS,
+- create a user,
+- attach the policy we created to the user,
+- return the user so we can reference it later when we update the bucket policy.
+
+## Update Bucket Policy
+
+In `index.ts`, create the user, and pass it into the bucket policy creation function.
+
+```ts
+const pipelineUser = createFrontendPipelineUser(bucket, cdn);
+
+const bucketPolicyDocument = createBucketPolicyDocument({
+  bucket,
+  distribution: cdn,
+  pipelineUser,
+});
+```
+
+Update the `createBucketPolicyDocument` function to add a new statement allowing the pipeline user to access the bucket.
+
+```ts
+export const createBucketPolicyDocument = ({
+  bucket,
+  distribution,
+  pipelineUser,
+}: {
+  bucket: Bucket;
+  distribution: Distribution;
+  pipelineUser: User;
+}) =>
+  aws.iam.getPolicyDocumentOutput({
+    statements: [
+      ...
+      {
+        principals: [
+          {
+            type: 'AWS',
+            identifiers: [getARN(pipelineUser)],
+          },
+        ],
+        actions: ['s3:PutObject', 's3:ListBucket', 's3:DeleteObject'],
+        resources: [bucket.arn, pulumi.interpolate`${bucket.arn}/*`],
+      },
+    ],
+  });
+```
 
 ## Setup GitHub Actions Environments
 
-## Push Your Code
+Let's set up [environments ](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment) for our GitHub Actions in our frontend repository to keep our secrets separate.
 
+### Setup Production
 
+- Create a production environment and move the existing secrets to it.
+- Settings -> Environmets -> New Environment.
+- Name it "Production."
+- Under "Deployment branches and tags", choose "Selected branches and tags" from the dropdown.
+  - Add the `main` branch as the deployment branch.
+- Add the same secrets you did previously.
+- Add the `API_URL` under environment variables, since it's not secret.
+- Delete the old secrets and environment variables that aren't associated with this environment.
 
+### Setup Dev
 
+Follow the same steps as above to create a dev environment associated with the `dev` branch.
 
+- Create an access key for your dev frontend pipeline user and add those secrets.  You can follow the steps [here](#create-access-key).
+- Add the remaining secrets, `BUCKET_NAME` and `DISTRIBUTION_ID`.  Follow the steps [here](#add-secrets-to-github-repo) to get them for the dev environment.
+- For the `API_URL`, you can set it to `https://api-dev.<your domain>`.  It won't work yet.
+
+## Extract Reusable Workflow
+
+Now we need to update our GitHub Actions workflows to use the correct environment variables.  We'll do this by extracting the shared logic to a [reusable workflow](https://docs.github.com/en/actions/using-workflows/reusing-workflows).
+
+From `main`, checkout a new branch called `dev`.  This branch will hold the code in the `dev` environment.
+
+In your frontend repo at `.github/workflows/build-deploy.yml`, add the reusable workflow.
+
+```yaml
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+
+jobs:
+  # Build job
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      NEXT_PUBLIC_API_URL: ${{ vars.API_URL }}
+      NEXT_PUBLIC_ENV: ${{ inputs.environment}}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+          cache: "npm"
+      - name: Restore cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            .next/cache
+          # Generate a new cache whenever packages or source files change.
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
+          # If source files changed but packages didn't, rebuild from a prior cache.
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
+      - name: Install Modules
+        run: npm ci
+      - name: Build Application
+        run: npm run build
+
+      # Deploy to AWS
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Deploy to S3
+        run: aws s3 sync ./out s3://${{ secrets.BUCKET_NAME }} --delete
+      - name: Create Cloudfront Invalidation
+        run: aws cloudfront create-invalidation --distribution-id ${{ secrets.DISTRIBUTION_ID }} --paths "/*"
+```
+
+We designate this a reusable workflow with the `on: workflow_call:` block.  We require the calling workflow to pass in a string telling the reusable workflow which environment to use.  We set the current environment based on that argument with `environment: ${{ inputs.environment }}`.  (There are some security protections that require passing the environment like this instead of it being automatically inherited from the calling workflow.)
+
+From then on, the workflow looks the same as before.  We're able to access secrets and environment variables from the correct environment.
+
+## Setup Calling Workflows
+
+Next, create the calling workflows, `.github/workflows/dev.yml` and .`github/workflows/production.yml`.
+
+The dev workflow look like this:
+
+```yaml
+name: Deploy FE to DEV
+
+on:
+  # Runs on pushes targeting dev
+  push:
+    branches: ["dev"]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# Allows one concurrent deployment to dev.
+concurrency:
+  group: "frontend-dev"
+  cancel-in-progress: false
+
+# Calls reusable workflow, passing in the name of the active environment.
+jobs:
+  build-deploy-dev:
+    uses: ./.github/workflows/build-deploy.yml
+    secrets: inherit
+    with:
+      environment: dev
+```
+
+For security purposes, you also must also add `secrets: inherit` to pass the active environment's secrets to the reusable workflow.
+
+The production workflow is identical, except the `main` branch and the `production` environment are referenced.
+
+## Show Current Environment on Frontend
+
+Just for fun, and to verify we're in the correct environment, let's display the current environment on the frontend.  We already added a reference in the reusable workflow: `NEXT_PUBLIC_ENV: ${{ inputs.environment}}`.
+
+- In your `.env`, add `NEXT_PUBLIC_ENV=local`.
+- In `src/app/page.tsx`, add `<h2>we are in {process.env.NEXT_PUBLIC_ENV}!</h2>`.
+- Verify locally and commit.
+
+## Push Your Code and Test
+
+Push your code up on your `dev` branch, and verify that the action runs and succeeds.
+
+- Go to your dev frontend (https://dev.your-domain) and verify that it worked and that you see the correct environment displayed.
+- Create a pull request to merge `dev` into `main`, and merge it.
+- Verify that the production GitHub Action runs and succeeds.
+- Go to your production frontend and verify that it works and that you see the correct environment displayed.
+
+### Update error page
+
+Now that we've got our actual code deployed, we need to reference the correct error page, `404.html`.  Run `pulumi config set errorDocument 404.html`, then `pulumi up`, then confirm that the error page works, then commit your infrastructure code!
+
+# Wrapping up Pulumi Frontend Code
+
+We've successfully deployed our second frontend environment with Pulumi 🎉.  Onwards to the backend!
+
+# Checkout the Pulumi ECS Starter
 
 
