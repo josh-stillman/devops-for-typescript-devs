@@ -19,13 +19,13 @@ export const createFrontendPipelineUser = (
           's3:DeleteObject',
           'cloudfront:CreateInvalidation',
         ],
-        resources: [getARN(bucket), getARN(distribution)],
+        resources: [bucket.arn, distribution.arn],
       },
     ],
   });
 
   const policy = new aws.iam.Policy('Dev-FE-Pipeline', {
-    policy: policyJSON.apply(policy => policy.json),
+    policy: policyJSON.json,
   });
 
   const user = new aws.iam.User('Dev-FE-Pipeline');
