@@ -1,8 +1,7 @@
-# DevOps for TypeScript Developers
+# DevOps for TypeScript Developers <!-- omit from toc -->
 
 This repo contains the Pulumi infrastructure code for the DevOps for TypeScript Developers tutorial.  The Front-end repo is [here](https://github.com/josh-stillman/devops-for-typescript-devs-frontend), and the Back-end repo is [here](https://github.com/josh-stillman/devops-for-typescript-devs-backend).  The course materials are below.
 
-- [DevOps for TypeScript Developers](#devops-for-typescript-developers)
 - [Introduction](#introduction)
   - [Why Learn DevOps as a Developer?](#why-learn-devops-as-a-developer)
   - [The Application](#the-application)
@@ -159,7 +158,17 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
   - [Push Your Code and Test](#push-your-code-and-test)
     - [Update error page](#update-error-page)
 - [Wrapping up Pulumi Frontend Code](#wrapping-up-pulumi-frontend-code)
-- [Checkout the Pulumi ECS Starter](#checkout-the-pulumi-ecs-starter)
+- [Pulumi Backend Setup](#pulumi-backend-setup)
+  - [Checkout the Pulumi ECS Starter](#checkout-the-pulumi-ecs-starter)
+  - [Create a Backend Function](#create-a-backend-function)
+  - [Setup ECR Repo](#setup-ecr-repo)
+  - [Push Image to Repo](#push-image-to-repo)
+- [Setup Secrets Manager](#setup-secrets-manager-1)
+  - [Create secrets file](#create-secrets-file)
+  - [Create secrets manager](#create-secrets-manager)
+- [Create ECS Service](#create-ecs-service)
+  - [Create Cluster](#create-cluster)
+  - [Create Task Definition](#create-task-definition)
 
 
 # Introduction
@@ -1334,7 +1343,7 @@ There are a couple new concepts in this section as well:
 
 # Setup API DNS
 
-Now let'sserve our Strapi app from a subdomain on our domain.
+Now let's serve our Strapi app from a subdomain on our domain.
 
 - Go to Route 53, click  Hosted Zones, and choose your Hosted Zone.
 - Click Add record.
@@ -2444,6 +2453,95 @@ Now that we've got our actual code deployed, we need to reference the correct er
 
 We've successfully deployed our second frontend environment with Pulumi 🎉.  Onwards to the backend!
 
-# Checkout the Pulumi ECS Starter
+# Pulumi Backend Setup
+
+## Checkout the Pulumi ECS Starter
+
+In a new directory, let's install Pulumi's [ECS starter template](https://www.pulumi.com/templates/container-service/aws/) and take a look.  Run `pulumi new container-aws-typescript`.  You can also take a look at this [Fargate tutorial](https://www.pulumi.com/registry/packages/aws/how-to-guides/ecs-fargate/).
+
+We'll start copying over code piece-by-piece to our repo.
+
+## Create a Backend Function
+
+Let's start splitting out our code for readability.  In your infrastructure repo at `src/backend/backend.ts`, create a function called `createBackend()` to wrap our code.  Then call this function in `index.ts`.
+
+## Setup ECR Repo
+
+Let's start with setting up the ECR repo.  In your `createBackend` function, add:
+
+```ts
+import * as awsx from '@pulumi/awsx';
+
+export const createBacked = () => {
+
+  // An ECR repository to store our application's container image
+  const repo = new awsx.ecr.Repository('repo', {
+    forceDelete: true,
+    lifecyclePolicy: {
+      rules: [
+        {
+          description: 'Max 1 image',
+          maximumNumberOfImages: 1,
+          tagStatus: 'any',
+        },
+      ],
+    },
+  });
+
+  return {
+    repoName: repo.repository.name,
+  }
+}
+```
+
+The `awsx` package is Pulumi's [Crosswalk for AWS](https://www.pulumi.com/docs/clouds/aws/guides/) package, which provides an easier to use API for common AWS tasks like this.
+
+In `index.ts`, call the function and re-export the returned `repoName` as a stack output.
+
+```ts
+export const { repoName } = createBackend();
+```
+
+Run `pulumi up`, commit, and note the repoName for the next step.
+
+## Push Image to Repo
+
+Follow the [instructions](#push-your-image) from earlier to push the Strapi image from the command line using your admin credentials.  Use the outputted repoName from the last step.
+
+# Setup Secrets Manager
+
+Pulumi does have an ability to [encrypt secrets](https://www.pulumi.com/learn/building-with-pulumi/secrets/), which allows you to commit them into your infrastructure repository.  But let's do this the old-fashioned (ish) way, with a gitignored secrets file.
+
+## Create secrets file
+
+In `src/secretsManager/backendSecrets.ts`, export an object containing your Strapi secrets from your `.env`.  We'll loop over this object when setting up our task definition.  It should look like this:
+
+```ts
+export const BACKEND_SECRETS: { [key: string]: string } = {
+  APP_KEYS: '',
+  API_TOKEN_SALT: '',
+  ADMIN_JWT_SECRET: '',
+  TRANSFER_TOKEN_SALT: '',
+  DATABASE_CLIENT: '',
+  DATABASE_FILENAME: '',
+  JWT_SECRET: '',
+};
+```
+Add `backendSecrets.ts` to your `.gitignore` file!
+
+## Create secrets manager
+
+Add these lines in the `createBackend` function.
+
+```ts
+const secretsManger = new aws.secretsmanager.Secret('api-secrets');
+
+const secretVersion = new aws.secretsmanager.SecretVersion('api-secrets-version', {
+  secretId: secretsManger.id,
+  secretString: JSON.stringify(BACKEND_SECRETS),
+});
+```
+
+Run `pulumi up` and commit.
 
 
