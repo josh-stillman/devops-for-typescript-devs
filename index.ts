@@ -6,14 +6,7 @@ import { createBucketPolicyDocument } from './src/s3/bucketPolicy';
 import { getARN } from './src/utils/getARN';
 import { requestRewriterLambda } from './src/lambda@edge/requestRewriter';
 import { getExistingCertificate } from './src/acm/getCertificate';
-
-export {
-  backendUrl,
-  repoName,
-  serviceName,
-  clusterName,
-} from './src/backend/backend';
-
+import { createBackend } from './src/backend/backend';
 // Import the program's configuration settings.
 const config = new pulumi.Config();
 const path = config.get('path') || './www';
@@ -145,6 +138,9 @@ const record = new aws.route53.Record(domainName, {
     },
   ],
 });
+
+export const { backendUrl, repoName, serviceName, clusterName } =
+  createBackend();
 
 // Export the URLs and hostnames of the bucket and distribution.
 export const originURL = pulumi.interpolate`http://${bucket.websiteEndpoint}`;
