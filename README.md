@@ -169,6 +169,16 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
 - [Create ECS Service](#create-ecs-service)
   - [Create Cluster](#create-cluster)
   - [Create Task Definition](#create-task-definition)
+    - [Reference latest image](#reference-latest-image)
+    - [Add Task Definition](#add-task-definition)
+    - [Allow Task Execution Role to access Secrets](#allow-task-execution-role-to-access-secrets)
+  - [Create ECS Service](#create-ecs-service-1)
+- [Create Load Balancer and Security Groups](#create-load-balancer-and-security-groups)
+- [Deploy Dev Backend Infrastructure](#deploy-dev-backend-infrastructure)
+- [Add Dev Backend CI/CD](#add-dev-backend-cicd)
+- [Tearing Down](#tearing-down)
+- [Conclusion](#conclusion)
+  - [Next Steps](#next-steps)
 
 
 # Introduction
@@ -2465,6 +2475,8 @@ We'll start copying over code piece-by-piece to our repo.
 
 Let's start splitting out our code for readability.  In your infrastructure repo at `src/backend/backend.ts`, create a function called `createBackend()` to wrap our code.  Then call this function in `index.ts`.
 
+(Pulumi does have a concept of [Component Resources](https://www.pulumi.com/docs/concepts/resources/components/), which are custom classes that wrap groups of resources for reusability.  However, you have to [manually pass `this`](https://www.pulumi.com/docs/concepts/resources/components/#creating-child-resources) to each child resource to make this work.  Here, we'll accomplish something similar with a function without manually managing `this`.)
+
 ## Setup ECR Repo
 
 Let's start with setting up the ECR repo.  In your `createBackend` function, add:
@@ -2494,7 +2506,7 @@ export const createBacked = () => {
 }
 ```
 
-The `awsx` package is Pulumi's [Crosswalk for AWS](https://www.pulumi.com/docs/clouds/aws/guides/) package, which provides an easier to use API for common AWS tasks like this.
+`awsx` is Pulumi's [Crosswalk for AWS](https://www.pulumi.com/docs/clouds/aws/guides/) package, which provides a friendlier API for common AWS tasks like this.
 
 In `index.ts`, call the function and re-export the returned `repoName` as a stack output.
 
@@ -2510,7 +2522,7 @@ Follow the [instructions](#push-your-image) from earlier to push the Strapi imag
 
 # Setup Secrets Manager
 
-Pulumi does have an ability to [encrypt secrets](https://www.pulumi.com/learn/building-with-pulumi/secrets/), which allows you to commit them into your infrastructure repository.  But let's do this the old-fashioned (ish) way, with a gitignored secrets file.
+Pulumi can [encrypt secrets](https://www.pulumi.com/learn/building-with-pulumi/secrets/), which allows you to commit them into your infrastructure repository.  But let's do this the old-fashioned (ish) way, with a gitignored secrets file.
 
 ## Create secrets file
 
@@ -2544,4 +2556,125 @@ const secretVersion = new aws.secretsmanager.SecretVersion('api-secrets-version'
 
 Run `pulumi up` and commit.
 
+# Create ECS Service
 
+Now for the meat of the backend.  We'll create a cluster, task definition, load balancer, and ecs service.
+
+## Create Cluster
+
+Let's create a Fargate cluster.
+
+```ts
+  // An ECS cluster to deploy into
+  const cluster = new aws.ecs.Cluster('cluster', {});
+```
+
+Easy-peasy.
+
+## Create Task Definition
+
+### Reference latest image
+
+First lets get a reference to the latest image in our ECR repository.
+
+```ts
+const existingImage = aws.ecr.getImageOutput({
+  repositoryName: repo.repository.name,
+  mostRecent: true,
+});
+```
+
+Note the name of the `getImageOutput()` function.  There' also a `getImage()` function provided.  The difference between the two is whether they return a Pulumi Output or a raw string value.  Here, we want the Output so we can pass it as an Input to our task definition.
+
+You'll see these two function signatures a lot in Pulumi, so make sure you're using the right one.
+
+### Add Task Definition
+
+Next, let's create our task definition.
+
+```ts
+const apiConfig = new pulumi.Config('api');
+
+const containerPort = apiConfig.getNumber('containerPort') || 80;
+
+const containerName =
+  apiConfig.get('containerName') || 'dev-backend-container';
+
+const cpu = apiConfig.getNumber('cpu') || 512;
+
+const memory = apiConfig.getNumber('memory') || 128;
+
+const taskDefinition = new awsx.ecs.FargateTaskDefinition('api-task-def', {
+  container: {
+    name: containerName,
+    image: pulumi.interpolate`${repo.url}:${existingImage.imageTags[0]}`,
+    cpu: cpu,
+    memory: memory,
+    essential: true,
+    portMappings: [
+      {
+        hostPort: containerPort,
+        containerPort: containerPort,
+      },
+    ],
+    secrets: Object.keys(BACKEND_SECRETS).map(secretName => ({
+      name: secretName,
+      valueFrom: pulumi.interpolate`${secretsManger.arn}:${secretName}::`,
+    })),
+  },
+});
+```
+
+You'll see that we're manually constructing the Docker image URI from various Pulumi Outputs.  And we're using the keys from our `BACKEND_SECRETS` object to construct the URI for each secret.
+
+You'll need to add the following variables to your `Pulumi.dev.yaml` file:
+
+```yaml
+config:
+  ...
+  api:containerPort: 1337
+  api:containerName: dev-backend-container
+  api:cpu: 256
+  api:memory: 512
+```
+
+### Allow Task Execution Role to access Secrets
+
+Next, let's allow our ECS service's Task Execution Role, which Pulumi creates along with the Task Definition, to access the secrets in secrets manager.
+
+```ts
+const secretManagerPolicyDoc = aws.iam.getPolicyDocumentOutput({
+  statements: [
+    {
+      effect: 'Allow',
+      actions: ['secretsmanager:GetSecretValue'],
+      resources: [secretsManger.arn],
+    },
+  ],
+});
+
+const secretManagerPolicy = new aws.iam.Policy('secretsPolicy', {
+  policy: secretManagerPolicyDoc.json,
+});
+
+const rpaSecrets = new aws.iam.RolePolicyAttachment('rpa-secrets', {
+  role: taskDefinition.executionRole as pulumi.Output<Role>,
+  policyArn: secretManagerPolicy.arn,
+});
+```
+
+We're using the pattern we've seen before here of creating a policy document, turning the document into a Policy in AWS, and attaching that Policy to a Role (here, our Task Execution Role).
+
+## Create ECS Service
+
+# Create Load Balancer and Security Groups
+
+# Deploy Dev Backend Infrastructure
+
+# Add Dev Backend CI/CD
+
+# Tearing Down
+
+# Conclusion
+
+## Next Steps
