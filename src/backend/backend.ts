@@ -137,7 +137,7 @@ export const createBackend = () => {
   });
 
   const secretManagerPolicy = new aws.iam.Policy('secretsPolicy', {
-    policy: secretManagerPolicyDoc.apply(doc => doc.json),
+    policy: secretManagerPolicyDoc.json,
   });
 
   const rpaSecrets = new aws.iam.RolePolicyAttachment('rpa-secrets', {
