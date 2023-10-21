@@ -3,7 +3,7 @@ import * as aws from '@pulumi/aws';
 import * as awsx from '@pulumi/awsx';
 import { BACKEND_SECRETS } from '../secretsManager/backendSecrets';
 import { Role } from '@pulumi/aws/iam';
-import { createBackendPipelineUser } from '../iam/pipelineUser';
+import { createBackendPipelineUser } from '../iam/backendPipelineUser';
 import { getExistingCertificate } from '../acm/getCertificate';
 import { getARN } from '../utils/getARN';
 
@@ -40,23 +40,18 @@ export const createBackend = () => {
             protocol: 'tcp',
             toPort: 443,
             cidrBlocks: ['0.0.0.0/0'],
-          },
-          {
-            fromPort: 80,
-            protocol: 'tcp',
-            toPort: 80,
-            cidrBlocks: ['0.0.0.0/0'],
+            ipv6CidrBlocks: ['::/0'],
           },
         ],
       },
     },
     defaultTargetGroup: {
-      port: 80,
+      port: containerPort,
       protocol: 'HTTP',
       targetType: 'ip',
       healthCheck: {
         enabled: true,
-        matcher: '200-299',
+        matcher: '200-204',
         path: '/_health',
         interval: 60 * 3,
         protocol: 'HTTP',
@@ -200,9 +195,10 @@ export const createBackend = () => {
   );
 
   return {
-    backendUrl: pulumi.interpolate`http://${loadBalancer.loadBalancer.dnsName}`,
+    loadBalancerUrl: pulumi.interpolate`http://${loadBalancer.loadBalancer.dnsName}`,
     repoName: repo.repository.name,
     serviceName: service.service.name,
     clusterName: cluster.name,
+    containerName,
   };
 };

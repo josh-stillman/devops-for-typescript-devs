@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
-import { createFrontendPipelineUser } from './src/iam/pipelineUser';
+import { createFrontendPipelineUser } from './src/iam/frontendPipelineUser';
 import { createBucketPolicyDocument } from './src/s3/bucketPolicy';
 import { getARN } from './src/utils/getARN';
 import { requestRewriterLambda } from './src/lambda@edge/requestRewriter';
@@ -139,8 +139,13 @@ const record = new aws.route53.Record(domainName, {
   ],
 });
 
-export const { backendUrl, repoName, serviceName, clusterName } =
-  createBackend();
+export const {
+  loadBalancerUrl,
+  repoName,
+  serviceName,
+  clusterName,
+  containerName,
+} = createBackend();
 
 // Export the URLs and hostnames of the bucket and distribution.
 export const originURL = pulumi.interpolate`http://${bucket.websiteEndpoint}`;
