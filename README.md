@@ -172,10 +172,18 @@ This repo contains the Pulumi infrastructure code for the DevOps for TypeScript 
     - [Reference latest image](#reference-latest-image)
     - [Add Task Definition](#add-task-definition)
     - [Allow Task Execution Role to access Secrets](#allow-task-execution-role-to-access-secrets)
+  - [Create Load Balancer](#create-load-balancer)
+  - [Create ECS Service Security Group](#create-ecs-service-security-group)
   - [Create ECS Service](#create-ecs-service-1)
-- [Create Load Balancer and Security Groups](#create-load-balancer-and-security-groups)
+- [Add Backend DNS](#add-backend-dns)
+- [Add Stack Outputs](#add-stack-outputs)
 - [Deploy Dev Backend Infrastructure](#deploy-dev-backend-infrastructure)
 - [Add Dev Backend CI/CD](#add-dev-backend-cicd)
+  - [Create Backend Pipeline User](#create-backend-pipeline-user-1)
+  - [Setup Environments and Add Secrets to GitHub](#setup-environments-and-add-secrets-to-github)
+  - [Setup Reusable Workflow](#setup-reusable-workflow)
+  - [Commit Dev Task Definition](#commit-dev-task-definition)
+  - [Push and Test](#push-and-test-1)
 - [Tearing Down](#tearing-down)
 - [Conclusion](#conclusion)
   - [Next Steps](#next-steps)
@@ -2558,7 +2566,7 @@ Run `pulumi up` and commit.
 
 # Create ECS Service
 
-Now for the meat of the backend.  We'll create a cluster, task definition, load balancer, and ecs service.
+Now for the meat of the backend.  We'll create a Cluster, Task Definition, Load Balancer, Security Groups, Route 53 record, and ECS Service.
 
 ## Create Cluster
 
@@ -2665,16 +2673,392 @@ const rpaSecrets = new aws.iam.RolePolicyAttachment('rpa-secrets', {
 
 We're using the pattern we've seen before here of creating a policy document, turning the document into a Policy in AWS, and attaching that Policy to a Role (here, our Task Execution Role).
 
+## Create Load Balancer
+
+Next up, let's create a Load Balancer to add to our Service.
+
+```ts
+  // An ALB to serve the container endpoint to the internet
+  const loadBalancer = new awsx.lb.ApplicationLoadBalancer('loadbalancer', {
+    listener: {
+      certificateArn: getARN(getExistingCertificate(domain)),
+      port: 443,
+      protocol: 'HTTPS',
+      sslPolicy: 'ELBSecurityPolicy-2016-08',
+    },
+    defaultSecurityGroup: {
+      args: {
+        ingress: [
+          {
+            fromPort: 443,
+            protocol: 'tcp',
+            toPort: 443,
+            cidrBlocks: ['0.0.0.0/0'],
+            ipv6CidrBlocks: ['::/0'],
+          },
+        ],
+      },
+    },
+    defaultTargetGroup: {
+      port: containerPort,
+      protocol: 'HTTP',
+      targetType: 'ip',
+      healthCheck: {
+        enabled: true,
+        matcher: '200-204',
+        path: '/_health',
+        interval: 60 * 3,
+        protocol: 'HTTP',
+      },
+    },
+  });
+```
+
+- We're listening for HTTPS traffic on port 443, using our existing SSL certificate and the helper functions we wrote earlier.
+- We're creating a security group for the ALB allowing ingress on port 443 (HTTPS) from any IP address.
+  - We're not passing egress rules, so we're getting the default allowing all egress.
+- We're creating a target group on port 1337 for our Strapi app, and configuring our healthcheck.
+
+## Create ECS Service Security Group
+
+Let's create a Security Group for our ECS Service allowing ingress on port 1337 to our Strapi App from the Load Balancer.
+
+```ts
+  // Fetch the default VPC information from your AWS account:
+  const vpc = new awsx.ec2.DefaultVpc('default-vpc');
+
+  const ecsSecurityGroup = new aws.ec2.SecurityGroup('ECSSecurityGroup', {
+    vpcId: vpc.vpcId,
+    ingress: [
+      // allow incoming traffic on 1337 from our loadbalancer
+      {
+        fromPort: 1337,
+        toPort: 1337,
+        protocol: 'tcp',
+        // eslint-disable-next-line @typescript-eslint/no-non-null-asserted-optional-chain
+        securityGroups: [
+          loadBalancer.defaultSecurityGroup.apply(sg => sg?.id!),
+        ],
+      },
+    ],
+    egress: [
+      // allow all outgoing traffic
+      {
+        fromPort: 0,
+        toPort: 0,
+        protocol: '-1',
+        cidrBlocks: ['0.0.0.0/0'],
+        ipv6CidrBlocks: ['::/0'],
+      },
+    ],
+  });
+```
+
+- We're getting a reference to the default VPC.
+- We're creating a Security Group allowing ingress on port 1337 from the Load Balancer's default security group.  (Note the unwrapping required here for this nested resources.)
+- We're allowing all outgoing traffic explicitly here.
+
 ## Create ECS Service
 
-# Create Load Balancer and Security Groups
+We've got a Cluster, Task Definition, Load Balancer, and Security Groups, so now we can create our ECS Service.
+
+```ts
+  // Deploy an ECS Service on Fargate to host the application container
+  const service = new awsx.ecs.FargateService('service', {
+    // desiredCount: 0, //  use this line to turn the service on/off
+    cluster: cluster.arn,
+    taskDefinition: taskDefinition.taskDefinition.arn,
+    loadBalancers: [
+      {
+        containerName: containerName,
+        containerPort: containerPort,
+        targetGroupArn: loadBalancer.defaultTargetGroup.arn,
+      },
+    ],
+    networkConfiguration: {
+      assignPublicIp: true,
+      subnets: vpc.publicSubnetIds,
+      securityGroups: [ecsSecurityGroup.id],
+    },
+  });
+```
+
+- We're referencing the Cluster and Task definition we created.
+- We are placing the container on port 1337 into the Load Balancer's Target Group.
+- We're assigning a public IP and placing the ECS service into our VPC's public subnets.
+- We're attaching the Security Group for the ECS Service.
+
+Note the commented line.  You can uncomment it to turn the ECS Service off to avoid costs by setting the desired Task count to 0.
+
+# Add Backend DNS
+
+```ts
+const domain = config.get('domain') || 'jss.computer';
+const subdomain = 'api-' + (config.get('subdomain') || 'dev');
+const domainName = `${subdomain}.${domain}`;
+
+const zone = aws.route53.getZoneOutput({ name: domain });
+
+const record = new aws.route53.Record(domainName, {
+  name: subdomain,
+  zoneId: zone.zoneId,
+  type: 'A',
+  aliases: [
+    {
+      name: loadBalancer.loadBalancer.dnsName,
+      zoneId: loadBalancer.loadBalancer.zoneId,
+      evaluateTargetHealth: true,
+    },
+  ],
+});
+```
+
+- We're getting a reference to our existing Route 53 domain.
+- We're adding a new record for the `api-dev` subdomain, and pointing it to our load balancer.
+
+# Add Stack Outputs
+
+We're going to need several stack outputs to setup our GitHub Action for dev.  Return the following variables from the `createBackend()` function:
+
+```ts
+  return {
+    repoName: repo.repository.name,
+    serviceName: service.service.name,
+    clusterName: cluster.name,
+    containerName
+  };
+```
+
+And reexport them in `index.ts`.
+
+```ts
+export const { repoName, serviceName, clusterName, containerName } = createBackend();
+```
 
 # Deploy Dev Backend Infrastructure
 
+Run `pulumi up` and let's verify that our infrastructure works!  Go to your api subdomain and verify that you can login at `/admin` with the same credentials as before.  Checkout your frontend and make sure you see the newsfeed.
+
+**TODO** Will this work in a single `pulumi up` or do you need the repo first?
+
 # Add Dev Backend CI/CD
+
+Our last task with Pulumi is to setup our backend CI/CD pipeline.
+
+## Create Backend Pipeline User
+
+In `src/iam/backendPipelineUser.ts`, add this function:
+
+```ts
+export const createBackendPipelineUser = (
+  repository: Repository,
+  taskExecutionRole: Output<Role | undefined>,
+  taskRole: Output<Role | undefined>
+) => {
+  const policyJSON = aws.iam.getPolicyDocumentOutput({
+    statements: [
+      {
+        actions: [
+          'ecr:BatchCheckLayerAvailability',
+          'ecr:BatchGetImage',
+          'ecr:CompleteLayerUpload',
+          'ecr:DescribeImageScanFindings',
+          'ecr:DescribeImages',
+          'ecr:DescribeRepositories',
+          'ecr:GetDownloadUrlForLayer',
+          'ecr:GetLifecyclePolicy',
+          'ecr:GetLifecyclePolicyPreview',
+          'ecr:GetRepositoryPolicy',
+          'ecr:InitiateLayerUpload',
+          'ecr:ListImages',
+          'ecr:ListTagsForResource',
+          'ecr:PutImage',
+          'ecr:UploadLayerPart',
+        ],
+        resources: [repository.repository.arn],
+      },
+      {
+        actions: [
+          'ecs:DescribeServices',
+          'ecs:UpdateService',
+          'ecr:GetAuthorizationToken',
+          'ecs:RegisterTaskDefinition',
+          'ecs:ListTaskDefinitions',
+          'ecs:DescribeTaskDefinition',
+        ],
+        resources: ['*'], // TODO: add service arn
+      },
+      {
+        actions: ['iam:PassRole', 'sts:AssumeRole'],
+        resources: [getARN(taskExecutionRole), getARN(taskRole)],
+      },
+    ],
+  });
+
+  const policy = new aws.iam.Policy('Dev-BE-Pipeline', {
+    policy: policyJSON.json,
+  });
+
+  const user = new aws.iam.User('Dev-BE-Pipeline');
+
+  const policyAttachment = new aws.iam.PolicyAttachment('Dev-BE-Pipeline', {
+    users: [user],
+    policyArn: policy.arn,
+  });
+
+  return user;
+};
+```
+
+- It takes in the ECR Repository, and ECS Task Role and Task Execution Role.
+- It creates a policy document scoped to those resources.
+- It creates a new user, and it attaches the policy to the user.
+
+Run `pulumi up` to create the user.  Follow the [steps above](#create-access-key) to create an access key, and write it down.
+
+## Setup Environments and Add Secrets to GitHub
+
+Follow the [steps above](#setup-github-actions-environments) to setup a Production environment for the `main` branch and a dev environment for the `dev` brach.
+
+Add your AWS credentials to each environment.
+
+For dev, use the stack outputs for the `ECR_REPOSITORY`, `ECS_SERVICE`, `ECS_CLUSTER`, and `CONTAINER_NAME` environment variables.  For prod, copy the hardcoded variables from the GitHub Action.
+
+For prod, rename the task definition to `.aws/task-definition-prod.json`, and set that path as the `ECS_TASK_DEFINITION`.  For dev, it will be `.aws/task-definition-dev.json`.
+
+## Setup Reusable Workflow
+
+Checkout a `dev` branch to make changes in your backend repo.
+
+You can copy over the dev and prod workflows from the frontend repo and make some minor adjustments.  Here's the backend dev workflow:
+
+```yaml
+name: Deploy BE to DEV
+
+on:
+  # Runs on pushes targeting the default branch
+  push:
+    branches: ["dev"]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# Allow only one concurrent deployment
+concurrency:
+  group: "api-dev"
+  cancel-in-progress: false
+
+jobs:
+  build-deploy-dev:
+    uses: ./.github/workflows/build-deploy.yml
+    secrets: inherit
+    with:
+      environment: dev
+```
+
+Next, rename the existing workflow to `build-deploy.yml`.  Remove the hardcoded environment variables and replace with references to the current environment.  Add the `on:` block designating this a reusable workflow.
+
+```yaml
+name: Deploy to Amazon ECS
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      AWS_REGION: us-east-1
+      ECR_REPOSITORY: ${{ vars.REPO_NAME }}
+      ECS_SERVICE: ${{ vars.SERVICE_NAME }}
+      ECS_CLUSTER: ${{ vars.CLUSTER_NAME }}
+      ECS_TASK_DEFINITION: ${{ vars.TASK_DEF_PATH }}
+      CONTAINER_NAME: ${{ vars.CONTAINER_NAME }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@0e613a0980cbf65ed5b322eb7a1e075d28913a83
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@62f4f872db3836360b72999f4b87f1ff13310f3a
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          # Build a docker container and
+          # push it to ECR so that it can
+          # be deployed to ECS.
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Fill in the new image ID in the Amazon ECS task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@c804dfbdd57f713b6c079302a4c01db7017a36fc
+        with:
+          task-definition: ${{ env.ECS_TASK_DEFINITION }}
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.build-image.outputs.image }}
+
+      - name: Deploy Amazon ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@df9643053eda01f169e64a0e60233aacca83799a
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+```
+
+## Commit Dev Task Definition
+
+Next, we need to commit the dev Task Definition JSON to `.aws/task-definition-dev.json` in our backend repo.
+
+You can get it from the console.  Or you can run `aws ecs list-task-definitions` to get the ARN, then run `aws ecs describe-task-definition --task-definition <ARN HERE> | jq '.taskDefinition' | pbcopy` to copy what you need to the clipboard.  (You'd need the `jq` package for parsing JSON, which you can get [here](https://formulae.brew.sh/formula/jq).)
+
+## Push and Test
+
+Commit and push your `dev` branch, and verify that the action runs and succeeds.  You could also add a newsfeed item locally in Strapi and commit that to verify that the pipeline succeeds.
 
 # Tearing Down
 
+When you need to tear down your dev environment, you can run [`pulumi destroy`](https://www.pulumi.com/docs/cli/commands/pulumi_destroy/).  This makes it very easy to manage your resources and prevent any surprise bills.  (You won't be able to delete users with access keys without deleting the access keys first in the console.)
+
+For both the prod stack and the dev stack, the two services that you'll be charged for the most on the free tier are your load balancers and your Fargate Service.  The load balancers must be deleted outright to prevent a charge.  The ECS Service can be set with a desired task count of 0 to keep the service resource in AWS without being charged for Fargate usage.
+
+Keep in mind that the [AWS free tier](https://aws.amazon.com/free/) generally only covers your first year on AWS.  To be extra sure that you won't get surprise bills a year from now, delete *all* resources you created that you don't want to use.
+
 # Conclusion
 
+We've come a long way.  We've setup a first full stack environment through the AWS console, getting to know each service as we went.  Then we set up a second environment using Pulumi to see how infrastructure as code can make our lives easier and give us much more control over our cloud resources.
+
+And we've touched most of the major AWS services along the way!  We know how to deploy static assets using a CDN.  We know how to setup DNS and SSL for our apps.  We know how to deploy containerized server-side applications, how to use load balancers to route traffic to them, and how to use security groups to secure them.  We know how to securely store and access secrets.  We know how to create and manage users and permissions, and create CI/CD pipelines.  And we know the basics of infrastructure as code.  These are the fundamental building blocks that you'll use in setting up *any* web application, on any cloud provider, no matter the scale or complexity.
+
+This knowledge should give you the foundation to standup, manage, and configure cloud infrastructure on your future projects.  Say, for example, you were asked to modify the application we built to use Next's server-side rendering capabilities.  You'd have an idea of where to start with Route 53, ALB, Security Groups, and ECS.  And you'd have an idea of how to go about making those changes using a tool like Pulumi.
+
+Even if there are dedicated operations engineers handling DevOps for your project, this knowledge will empower you as a developer to have informed discussions in planning your application's architecture.  The knowledge you gained of each moving piece in your infrastructure will also help you in debugging production applications.  And this knowledge should also set you up to learn more by going deeper on topics like scaling and securing applications.
+
 ## Next Steps
+
+There are a few more refinements I plan to add to the course.
+
+- Add postgres database with RDS to store Strapi content.
+  - Store blog posts in the database and trigger a frontend rebuild when adding new blog posts in Strapi through a GitHub webhook.
+- Use EC2 for our ECS cluster to save costs, and to learn EC2 basics.
+- Fix TODOs in code, like narrowing pipeline user permissions.
