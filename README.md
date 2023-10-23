@@ -479,13 +479,15 @@ s3 is a key/value store for names (file names) and "objects" (aka files).  They'
 
 ## Add a bucket policy allowing access
 
+Next, we need to setup a policy allowing access to our bucket.  Policies in AWS specify *who* can take an action (the principal), *what* actions they can perform, and *to which* resources.  Resources are often referred to by their ARN ([Amazon Resource Name](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html)), which are unique identifiers for cloud resources in AWS.  We'll be working with Policies and ARNs a lot.
+
 - Go to your bucket, then the Permissions tab, then click the edit button on the Bucket Policy.
 - You can create a policy JSON document with the AWS [policy generator](https://awspolicygen.s3.amazonaws.com/policygen.html).
 - Here, we want to let everyone access our bucket for now.
 - Choose s3 Bucket policy from the dropdown.
 - Choose `*` for the principal, meaning we want the policy to apply to everyone.
 - For actions, search for GetObject.
-- For the ARN (Amazon Resource Name), copy the ARN from your bucket under the Properties tab.  [ARNs](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html) are unique identifiers for cloud resources in AWS.  We'll be using them a lot.
+- For the ARN (Amazon Resource Name), copy the ARN from your bucket under the Properties tab.
 - For the ARN, you need to add `/*` at the end, meaning all objects within the bucket.
 - Your policy should look like this:
     ```json
@@ -505,8 +507,6 @@ s3 is a key/value store for names (file names) and "objects" (aka files).  They'
         ]
     }
     ```
-
-This is what AWS permission policy JSON docs look like.  They specify *who* can take an action (the principal), *what* actions they can perform, and *to which* resources.
 
 - Copy this policy and paste it in to the bucket policy field.
 
@@ -534,14 +534,14 @@ Cool!  We've got a website up, but there are a lot of improvements left.  We're 
 
 # Setup the AWS CLI
 
-Let's take a minute to set up the AWS CLI.  It's useful for all kinds of things, like listing the resources in our account.  And when we get to using Pulumi, we'll need to have the AWS CLI configured locally so Pulumi can manage our infrastructure for us.
+Let's take a minute to set up the AWS CLI.  It's useful for all kinds of things, like listing the resources in our account.  And we'll need to have the AWS CLI configured locally so Pulumi can manage our infrastructure for us later in the course.
 
 - Install the [AWS CLI](https://aws.amazon.com/cli/).
 - Generate an access token for your admin user. IAM → User → Security Credentials → Create Access Key.
-- Copy paste both public key and secret.  Keep them somewhere safe and secure.  You can only view these credentials once, so make sure.
+- Copy paste both public key and secret.  Keep them somewhere safe and secure.  You can only view these credentials once, so make sure you copy them before navigating away.
 - In your terminal, run `aws configure`.
   - Add your credentials.
-  - Select us-east-1.
+  - Select us-east-1 for your region.
   - Select JSON for output.
 - Give it a try!  Run this command with your bucket name to list the files in it. `aws s3 ls s3://jss.computer`.
 
@@ -550,23 +550,23 @@ Let's take a minute to set up the AWS CLI.  It's useful for all kinds of things,
 Let's point our domain name to our s3 bucket.
 
 - Go to route 53 → Click Hosted Zone → click your zone → click create record.
-
-![create DNS record](assets/create-dns-record.png)
-
 - Hit the Alias toggle.
 - Choose alias to s3 website endpoint.
 - Choose us-east-1.
 - Auto-fill the endpoint from the drop-down.
 - Click create record.
-- Go to your url (on http) and test it out!  (You may need to wait a little bit for the changes to propagate).
+
+![create DNS record](assets/create-dns-record.png)
+
+- Go to your domain (on HTTP) and test it out!  (You may need to wait a little bit for the changes to propagate).
 
 # Setup HTTPS with ACM
 
-Now, let's serve our site securely with https.  For that, we'll need a TLS certificate that authenticates our site.  We can provision one in the [Amazon Certificate Manager (ACM)](https://us-east-1.console.aws.amazon.com/acm/home?region=us-east-1#/welcome).
+Now, let's serve our site securely with HTTPS.  For that, we'll need a TLS certificate that authenticates our site.  We can provision one in the [Amazon Certificate Manager (ACM)](https://us-east-1.console.aws.amazon.com/acm/home?region=us-east-1#/welcome).  For more on HTTPS and how it works, see [these](https://www.cloudflare.com/learning/ssl/what-is-https/) [resources](https://www.keyfactor.com/blog/what-is-tls-handshake-how-does-it-work/).
 
 - Go to AWS Certificate Manager, and MAKE SURE you’re in us-east-1.  Only those certificates can be used with CloudFront.
 - Click request certificate → request public certificate.
-  - Add both the main domain name and a wildcard in Fully Qualified Name.  This will let us use this certificate for our main site as well as our subdomains (like our backend url).
+  - Add both the main domain name and a wildcard subdomain in Fully Qualified Name.  This will let us use this certificate for our main site as well as our subdomains (like `dev.jss.computer` and `api.jss.computer`).
   - For example, both `jss.computer` and `*.jss.computer`.
 - Click request certificate.
 
@@ -575,17 +575,17 @@ Now, let's serve our site securely with https.  For that, we'll need a TLS certi
 - Click the blue banner saying further action needed.
 - Under domains, click "create record in Route 53."  This record proves to the certificate authority that you do in fact own the domain.
 
-https won't work with our s3 bucket just yet.  We'll have to setup CloudFront first.
+HTTPS won't work with our s3 bucket just yet.  We'll have to setup CloudFront first.
 
 # Setup CloudFront (CDN)
 
-CloudFront is a Content Delivery Network (CDN) that globally distributes our site for faster loads world-wide.  Right now our files are *only* hosted in Virginia.  If someone from Australia goes to our site, they are going to have a much longer load time than someone on the East Coast.
+[CloudFront](https://aws.amazon.com/cloudfront/) is a Content Delivery Network (CDN) that globally distributes our site for faster loads world-wide.  Right now our files are *only* hosted in Virginia.  If someone from Australia goes to our site, they are going to have a much longer load time than someone on the East Coast.
 
-We can solve this problem with a CDN, which will put copies of our files on many "edge servers" located around the world.  When the first user from Australia goes to our site, CloudFront will intercept the request, fetch it from Virginia, cache it on an edge server in Australia, and return it to that user.  When the *next* user from Australia goes to our site, the Australian edge server will have our assets and will return it much quicker!  CloudFront "uses a [global network](https://aws.amazon.com/cloudfront/features/?whats-new-cloudfront.sort-by=item.additionalFields.postDateTime&whats-new-cloudfront.sort-order=desc#Global_Edge_Network) of 550+ Points of Presence and 13 regional edge caches in 100+ cities across 50 countries."  I told you DevOps was powerful stuff!
+We can solve this problem with a CDN, which will put copies of our files on many "edge servers" located around the world.  When the first user from Australia goes to our site, CloudFront will intercept the request, fetch it from Virginia, cache it on an edge server in Australia, and return it to that user.  When the *next* user from Australia goes to our site, the Australian edge server will have our assets and will return it much quicker, without needing to go back to Virginia!  CloudFront "uses a [global network](https://aws.amazon.com/cloudfront/features/?whats-new-cloudfront.sort-by=item.additionalFields.postDateTime&whats-new-cloudfront.sort-order=desc#Global_Edge_Network) of 550+ Points of Presence and 13 regional edge caches in 100+ cities across 50 countries."  I told you DevOps was powerful stuff!
 
 ![CloudFront Edge Servers](assets/cloudfront.png)
 
-We'll create a CloudFront "distribution" to distribute our site.  Later, when we setup our CI/CD pipeline, we'll setup CloudFront "invalidations," which tell the edge servers to fetch the new assets from the "origin" server in Virgina (that is, our s3 bucket in us-east-1).
+We'll create a CloudFront "distribution" to distribute our site.  Later, when we setup our CI/CD pipeline, we'll setup CloudFront "invalidations," which tell the edge servers to fetch the new assets from the "origin" server in Virgina (our s3 bucket) on the next request.
 
 ## Create CloudFront Distribution
 
@@ -594,7 +594,7 @@ We'll create a CloudFront "distribution" to distribute our site.  Later, when we
 
 ### Origin and Origin Access Control
 
-- Choose your s3 Bucket under Origin Domain.  It will ask you to use the website endpoint, but don't click the button.  This will allow us to secure the origin later and only allow access through CloudFront.
+- Choose your s3 Bucket under Origin Domain.  It will recommend that you use the bucket's website endpoint, but don't click the button.  This will allow us to secure the origin later and only allow access through CloudFront.
 - Under Origin Access, select Origin Access Control (OAC), then click the Create control setting button.
 
 An OAC is a security measure that allows CloudFront to access a non-public bucket.  It does so through a custom Authorization header signed by CloudFront.  See [here](https://aws.amazon.com/blogs/networking-and-content-delivery/amazon-cloudfront-introduces-origin-access-control-oac/) for more.
@@ -626,7 +626,7 @@ We need to tell CloudFront how to handle errors.  Go to your distribution, click
 - Choose 404: Not found
 - Keep the default TTL.
 - Customize the error response to use `/404.html` and the 404 code.  Note the leading slash, which (confusingly) is required here but not when specifying index.html as the root object.
-- Save Changes
+- Save Changes.
 
 ![404 page](assets/cloudfront-404.png)
 
@@ -680,8 +680,8 @@ Go to your domain (such as https://jss.computer).
 - It should be on https.
 - Try going to http and it should redirect to https.
 - Try going to a page that doesn't exist and you should see the 404 page.
-- Try clicking the link from the root page to go to `/foo` and it should work (this is client-side routing).
-- Try reloading the page at `/foo` (server routing) and you should instead see the 404.  Don't panic, we'll fix it!
+- Try clicking the link from the root page to go to `/foo` and it should work (this is Next's [client-side routing](https://nextjs.org/docs/pages/building-your-application/routing/linking-and-navigating)).
+- Try reloading the page at `/foo` (this is server routing with CloudFront) and you should instead see the 404.  Don't panic, we'll fix it!
 
 ## Seal off your bucket
 
@@ -699,11 +699,9 @@ Let's fix the issue where reloading the page at `/foo` give us a 404.
 
 Why is it happening? If you go to https://jss.computer/foo, CloudFront is looking for a file in s3 called `foo`, not `foo.html`, and only the html file exists!  Solving this is more work than it should be, but it's a good introduction to Lambda@Edge.
 
-To fix this, we'll create a function that will intercept each CloudFront request.  If the request is for a path *without* a file extension, we'll append `.html` at the end, and then the request will be routed to our s3 bucket.  This allows us to correctly serve up these files while keeping our routing looking clean (the user doesn't see the file extension in the URL, as is typical on modern websites).
+[AWS Lambda](https://aws.amazon.com/lambda/) is a service that allows us to run serverless functions in JavaScript and other languages.  [Lambda@Edge](https://aws.amazon.com/lambda/edge/) allows you to run them on CloudFront's edge servers to do things like intercept and rewrite requests.  If we were running our own servers, tasks like this would typically be handled by a [reverse proxy](https://www.nginx.com/resources/glossary/reverse-proxy-server/#:~:text=A%20reverse%20proxy%20server%20is,traffic%20between%20clients%20and%20servers.) like NGINX or Caddy.  But with CloudFront, these tasks are handled with Lambda@Edge.
 
-[AWS Lambda](https://aws.amazon.com/lambda/) is a service that allows us to run serverless functions in JavaScript and other languages.  [Lambda@Edge](https://aws.amazon.com/lambda/edge/) allows you to run them on CloudFront's edge servers to do things like intercept and rewrite requests.
-
-If we were running our own servers, tasks like this would typically be handled by a [reverse proxy](https://www.nginx.com/resources/glossary/reverse-proxy-server/#:~:text=A%20reverse%20proxy%20server%20is,traffic%20between%20clients%20and%20servers.) like NGINX or Caddy.  But with CloudFront, these tasks are handled with Lambda@Edge.
+To fix this our routing problem, we'll create a Lambda@Edge function that will intercept each CloudFront request.  If the request is for a path *without* a file extension, we'll append `.html` at the end when sending the request on to our s3 bucket.  This allows us to correctly serve up these files while keeping the routes the user sees in their browser looking clean ([other solutions](https://stackoverflow.com/questions/63591544/next-js-how-to-make-links-work-with-exported-sites-when-hosted-on-aws-cloudfron) to this problem weren't as nice looking).
 
 ## Create Function
 
@@ -740,7 +738,7 @@ export const handler = (event, context, callback) => {
 export default handler;
 ```
 
-I know--DevOps for *Typescript Developers*.  Don't worry, we'll use TS when we start using Pulumi.
+I know-DevOps for *Typescript Developers*.  Don't worry, we'll use TS when we start using Pulumi.
 
 Most of the heavy lifting here is done by the regex, `/\/[^/.]+$/`.  What it's doing is:
 
@@ -777,8 +775,8 @@ We need to let CloudFront execute this function by letting it assume the Lambda'
 
 Now let's deploy the function to the edge.  On your function page, click the Add Trigger button.
 
-- Select CloudFront
-- Click the Deploy to Lambda@Edge button
+- Select CloudFront.
+- Click the Deploy to Lambda@Edge button.
 - Select Origin Request.
 
 ![deploy to lambda@edge](assets/deploy-to-lambda-edge.png)
@@ -795,7 +793,7 @@ Cloudfront can take some time to deploy, which makes sense.  Give it a little ti
 
 # Frontend CI/CD pipeline
 
-Next, let's stop uploading files directly from our computer!  We can setup a CI/CD pipeline in our GitHub repository using GitHub Actions.  When new code is pushed to our `main` branch, it will trigger the pipeline, which will build our code, upload the build to our s3 bucket, and create a CloudFront invalidation telling CloudFront to fetch the new version from the bucket.
+Next, let's stop uploading files directly from our computer!  We can setup a CI/CD pipeline in our GitHub repository using GitHub Actions.  When new code is pushed to our `main` branch, it will trigger the pipeline, which will build our code, upload the build to our s3 bucket, and create a CloudFront invalidation telling CloudFront to fetch the new version from the bucket on the next user request.
 
 ## Create Pipeline User
 
@@ -831,7 +829,7 @@ The pipeline will need an AWS access key to use the AWS CLI to upload files to s
 
 **TODO** Is the resource /*?  Do you need ListBucket?  Check back on the Cloudfront policy, /* might be all that is needed.
 
-We want the pipeline to be able to add files to the bucket with the `aws s3 sync --delete` command, which requires `s3:PutObject`, `s3:ListBucket`, and `s3:DeleteObject`.  We're deleting the old files in the bucket so we start with a clean slate (what if there was a page at `/baz` that we end up removing in a new pull request -- we need to clear the bucket on each push or it will remain).
+We want the pipeline to be able to add files to the bucket with the `aws s3 sync --delete` command, which requires `s3:PutObject`, `s3:ListBucket`, and `s3:DeleteObject`.  We're deleting the old files in the bucket so we start with a clean slate and any dead routes are pruned.
 
 We also need the user to be able to create invalidations on our CloudFront distribution with `cloudfront:CreateInvalidation`.
 
@@ -839,7 +837,7 @@ We scope these permissions to the specific bucket and distribution for our envir
 
 ### Create User
 
-- Create a new user in IAM
+- Create a new user in IAM.
 - Don't grant console access.
 - Attach the policy you just created to the user.
 
