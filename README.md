@@ -66,9 +66,10 @@ This repo contains the Pulumi infrastructure code, and the course materials are 
   - [Summing up the Frontend](#summing-up-the-frontend)
 - [Setup Strapi Locally](#setup-strapi-locally)
   - [Bootstrap Strapi](#bootstrap-strapi)
+  - [Create GitHub Repo](#create-github-repo)
   - [Dockerize Strapi](#dockerize-strapi)
     - [Create Dockerfile](#create-dockerfile)
-    - [Add Dockerignore](#add-dockerignore)
+    - [Add .dockerignore](#add-dockerignore)
     - [Test Docker Locally](#test-docker-locally)
 - [Setup Elastic Container Registry (ECR)](#setup-elastic-container-registry-ecr)
   - [Push your image](#push-your-image)
@@ -971,15 +972,15 @@ We've got a fully functional frontend environment now, complete with a working C
 
 # Setup Strapi Locally
 
-To keep our backend simple we're going to use [Strapi](https://strapi.io/), a headless CMS.  Out of the box, Strapi will let us set up an admin user, log into an admin dashboard, add items to a collection, and serve those items as JSON via an API endpoint.  In production, Strapi would be a good choice when you need to let non-technical users edit frequently changing information, like a news feed.
+To keep our backend simple we're going to use [Strapi](https://strapi.io/), a headless CMS.  Out of the box, Strapi will let us set up an admin user, log into an admin dashboard, add items to a collection, and serve those items as JSON via an API endpoint.  In production, Strapi would be a good choice when you need to let non-technical users edit frequently changing information.
 
 We'll use Strapi to create a news feed.  Each item will just have a headline and a body and a publication date.  Then we'll display our newsfeed on our frontend.
 
-We can follow the [quickstart guide](https://docs.strapi.io/dev-docs/quick-start#_1-install-strapi-and-create-a-new-project).
+We can follow the Strapi [quickstart guide](https://docs.strapi.io/dev-docs/quick-start#_1-install-strapi-and-create-a-new-project).
 
 ## Bootstrap Strapi
 
-- Run `npx create-strapi-app@latest code-along-api --quickstart --typescript`
+- Run `npx create-strapi-app@latest my-api --quickstart --typescript`
   - This creates a Strapi project with a sqlite database saved to the `/tmp/data.db` file.
 - Strapi starts at the signup page.  Create an account.
 - You now have access to the admin panel.
@@ -991,19 +992,23 @@ We can follow the [quickstart guide](https://docs.strapi.io/dev-docs/quick-start
   - Select `find` and `findOne`, and save.
 - Test it out!  run `curl http://localhost:1337/api/news-items`, and you should see your news item!
 
+## Create GitHub Repo
+
+Follow the [steps above](#create-github-repo) to create a GitHub repo for your Strapi backend.  Commit and push!
+
 ## Dockerize Strapi
 
-For deployment, we'll containerize Strapi with Docker.  Docker is an industry standard way to package our applications.  It allows us to create "containers" which hold not only our application code, but also let us specify the operating system and any additional system dependencies (like Node for instance) our application needs.  Then, our application can dependably be run on any machine that can run Docker, regardless of any other differences between machines.  It solves the "but it works on my machine!" problem for us!  And it allows us to quickly spin up multiple instances of our application for easy scalability.
+For deployment, we'll containerize Strapi with [Docker](https://www.docker.com/).  Docker is an industry-standard way to package our applications.  It allows us to create "containers" which hold not only our application code, but also let us specify the operating system and any additional system dependencies (like Node) our application needs.  Then, our application can dependably be run on any machine that can run Docker, regardless of any other differences between machines.  It solves the "but it works on my machine!" problem for us!  And it allows us to quickly spin up multiple instances of our application for easy scalability.
 
 It also opens up some interesting possibilities for deploying our application without having to manage servers, which we'll explore later.
 
 Docker is a deep subject.  For more, take a look at the [docs](https://docs.docker.com/get-started/), or check out Brian Holt's excellent [Complete Intro To Containers](https://frontendmasters.com/courses/complete-intro-containers/) course on Frontend Masters.
 
-If you haven't already, install and start [Docker](https://docs.docker.com/desktop/install/mac-install/).
+If you haven't already, [install](https://docs.docker.com/desktop/install/mac-install/) and start Docker.
 
 ### Create Dockerfile
 
-Add a file called `Dockerfile` in your Strapi root dir (no file extension).  We can mostly copy it from the [official sample](https://docs.strapi.io/dev-docs/installation/docker#production-dockerfile).  One important difference is the `FROM --platform=linux/amd64` which you will need if you are on an M1/M2 Macbook.
+Add a file called `Dockerfile` in your Strapi root dir (no file extension).  We can mostly copy it from the [official sample](https://docs.strapi.io/dev-docs/installation/docker#production-dockerfile).  One important difference is the `FROM --platform=linux/amd64`, which you will need if you are on an M1/M2 Macbook.
 
 ```dockerfile
 # Creating multi-stage build for production
@@ -1040,12 +1045,12 @@ At a high level, what's happening here is:
 
 - We're starting our build stage from a Docker image with Alpine Linux and Node installed already.  [Alpine Linux](https://www.alpinelinux.org/) is a lightweight Linux distribution.
 - We're installing some additional dependencies that Strapi needs to build the app.
-- Next, we're running `npm install`, followed by `npm run build`.
-  - The order is important here, as is the fact that this is done on two separate lines.  Docker evaluates whether it can use the last cached version of each step (called an image layer) line-by-line.  So if the dependencies don't change, this will let Docker skip re-downloading them, even if the code has changed.
-- Next, we create a new image for our final stage.  We copy over only what we need from the build stage.  And we install only what we need to *run* the app, not *build* the app, into this final stage.  This keeps our images smaller.
-- Finally, we're exposing port 1337 that Strapi will run on, and we run `npm run start` when the docker container starts, which starts Strapi.
+- Next, we're copying our `package.json` into the container's filesystem and running `npm install`, followed by copying our project files and running `npm run build`.
+  - The order is important here, as is the fact that this is done on two separate lines.  Docker evaluates whether it can use the last cached version of each step (called an image layer) line-by-line.  So if the dependencies don't change between builds, this will let Docker skip re-downloading them.
+- Next, we create a new image for our [final stage](https://docs.docker.com/build/building/multi-stage/).  We copy over only what we need from the build stage.  And we install only what we need to *run* the app, not *build* the app, into this final stage.  This keeps our final image smaller.
+- Last, we're exposing port 1337 that Strapi will run on, and we run `npm run start` to start Strapi when the docker container starts.
 
-### Add Dockerignore
+### Add .dockerignore
 
 We need to make sure not everything is copied into our image when this line is executed: `COPY . .`.  We don't want to copy over our node modules, which aren't compatible with Linux, as well as other unnecessary files.
 
@@ -1069,7 +1074,7 @@ Note that we're commenting out the line ignoring our .tmp directory holding our 
 
 - Run `docker build -t strapi-test .`  This builds your docker image.
 - Run `docker images ls` to verify your strapi-test image was built.
-- Run `docker run -rm -p 1337:1337 --env-file .env strapi-test`.  This runs our docker image on port 1337, using the environment variables in our `.env` file.
+- Run `docker run -rm -p 1337:1337 --env-file .env strapi-test`.  This runs a docker container from our image on port 1337, using the environment variables in our `.env` file.
 - Run `curl http://localhost:1337/api/news-items` and you should see your news items.
 - Log into the admin dashboard at http://localhost:1337/admin.
 
@@ -1077,7 +1082,7 @@ If you run into trouble logging into the admin dashboard, the latest Strapi vers
 
 # Setup Elastic Container Registry (ECR)
 
-Now we need to upload our Strapi Docker image to AWS.  They're stored in the Elastic Container Registry (ECR) service, and then other AWS services can access them and run containers from those images.
+Now we need to upload our Strapi Docker image to AWS.  Images are stored in the [Elastic Container Registry](https://aws.amazon.com/ecr/) (ECR) service, and then other AWS services can access them and run containers from them.
 
 - Search for ECR and make sure you're in us-east-1.
 - Click Create Repository.
@@ -1108,12 +1113,12 @@ Click the View push commands button on your repo's page to show instructions for
 
 # Setup Secrets Manager
 
-Next, we need a place to store our secrets when we run our container in the cloud.  Locally they're stored in .env, but we exclude that file in our docker ignore for security purposes.
+Next, we need a place to store our secrets when we run our container in the cloud.  Locally they're stored in `.env`, but we exclude that file in our docker ignore for security purposes.
 
-AWS provides the Secrets Manager that allows us to store secrets and provide access to other AWS services.  We'll create a single "Secret" in Secrets Manager that will store all of our secrets as JSON.
+[AWS Secrets Manager](https://aws.amazon.com/secrets-manager/) allows us to store secrets in the cloud and provide access to other AWS services.  We'll create a single "Secret" in Secrets Manager that will store all of our secrets as JSON key/value pairs.
 
-- Go to Secrets Manager and click Store a new secret
-- Select Other type of secret
+- Go to Secrets Manager and click Store a new secret.
+- Select Other type of secret.
 - Add the following secrets from your local `.env` file:
   - APP_KEYS
   - API_TOKEN_SALT
@@ -1146,9 +1151,11 @@ There are a few different pieces in ECS that all work together to run our contai
 - Task Definition.  This is the set of instructions the Service uses for starting each container.  You can configure things like how much cpu and ram to allocate for your container, as well as setup environment variables.
 - Task.  An ECS "Task" here is a single running container instance.  (A Task can have [multiple](https://docs.aws.amazon.com/AmazonECS/latest/bestpracticesguide/application.html) running Docker containers if you need to run "sidecar" tasks, but generally a task definition should have one main container with a single purpose.)
 
-In addition, we are going to place an [Application Load Balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html) (ALB) in front of our ECS Service.  The ALB will let us easily point a subdomain to our service using Route 53 (like https://api.jss.computer) and use https.  Then, we'll only allow traffic going to our container from the ALB, rather than directly.
+In addition, we are going to place an [Application Load Balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html) (ALB) in front of our ECS Service.  The ALB will let us easily point a subdomain to our service using Route 53 (like https://api.jss.computer) and use https.  Then, we'll only allow traffic going to our container from the ALB for security purposes.
 
-We're mainly using the ALB here for networking purposes, but it can do much more.  As the name suggests, it can route traffic between multiple instances of your application using various strategies to handle increased usage.  It also performs health checks on our containers and will restart containers that have crashed.  While the ECS Service can be stopped without deleting it, you'd have to delete the ALB to prevent being charged.
+We're mainly using the ALB here for networking purposes, but it can do much more.  As the name suggests, it can route traffic between multiple instances of your application using various strategies.  (As your app's usage scales, you'll likely need more than one instance to handle the load.)  It also performs health checks on our containers and will restart containers that have crashed.
+
+While the ECS Service can be stopped without deleting it, you'd have to delete the ALB to prevent being charged.
 
 ## Create a Cluster
 
@@ -1172,7 +1179,7 @@ We're mainly using the ALB here for networking purposes, but it can do much more
 
 ![infrastructure requirements](assets/task-def-infrastructure.png)
 
-What are these roles?  The [Task Execution Role](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_execution_IAM_role.html) is the role assumed by the ECS Service in starting the container.  It needs permissions to do things like access ECR to get your image and access Secrets Manager for environment variables.  The [Task Role](https://towardsthecloud.com/amazon-ecs-task-role-vs-execution-role), on the other hand, is the role assumed by the running task, and is used for things like uploading files to s3 buckets or accessing other AWS services.
+What are these roles?  The [Task Execution Role](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_execution_IAM_role.html) is the role assumed by the ECS Service in starting the container.  It needs permissions to do things like access ECR to get your image and access Secrets Manager to get your environment variables.  The [Task Role](https://towardsthecloud.com/amazon-ecs-task-role-vs-execution-role), on the other hand, is the role assumed by the running task, and is used for things like uploading files to s3 buckets or accessing other AWS services.
 
 ### Container Definition
 
@@ -1184,12 +1191,14 @@ What are these roles?  The [Task Execution Role](https://docs.aws.amazon.com/Ama
 
 ![container definition](assets/container-definition.png)
 
+***TODO*** new image without 80.
+
 ### Environment Variables
 
 Expand the environment variables dropdown.
 
-- Add the environment variables you added to the Secrets Manager.
-- For each, choose ValueFrom.
+- Add the environment variables you added to the Secrets Manager as keys.
+- For each key, choose ValueFrom.
 - For each value, you need to construct a URI for the secret.  It takes [this form](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/secrets-envvar-secrets-manager.html): `arn:aws:secretsmanager:region:aws_account_id:secret:secret-name:json-key:version-stage:version-id`
   - So, for the `APP_KEYS` secret, it would look like this: `arn:aws:secretsmanager:us-east-1:225934246878:secret:prod/code-along-api-W3kDvu:APP_KEYS::`.
   - This is the ARN of your Secret (which you can copy from Secrets Manager), followed by the name of the particular environment variable, followed by two colons.
@@ -1201,7 +1210,7 @@ Click create!
 
 ## Allow ECS to Access Secrets
 
-Now we need to allow the Task Execution Role, which starts our tasks, access to the secrets in Secrets Manager.
+Now we need to allow the Task Execution Role, which starts our tasks, to access Secrets Manager.
 
 - Go to IAM.
 - Go to Roles.
@@ -1226,7 +1235,7 @@ Now we need to allow the Task Execution Role, which starts our tasks, access to 
 
 ## Create an ECS Service
 
-We've got our Cluster to run our Service on, we've got a Task Definition that our Service can use to start our Task, and we've got our secrets set up.  Now we can create the Service itself.
+We've got our Cluster to run our Service on, we've got a Task Definition that instructs our Service how to start our Task, and we've got our secrets set up.  Now we can create the Service itself.
 
 - Go to your cluster, and under services, click Create.
 
@@ -1238,7 +1247,7 @@ We've got our Cluster to run our Service on, we've got a Task Definition that ou
 
 ### Deployment Configuration
 
-- In the Deployment Configuration, select the Task Definition you created from the dropdown, and choose the latest revision.
+- In the Deployment Configuration section, select the Task Definition you created from the dropdown, and choose the latest revision.
 - Add a service name.
 - Keep the other defaults, including keeping the desired tasks at 1.
   - If you expand the Deployment Options section, you'll see the Min and Max running tasks are set to 100% and 200% of the desired number (1).  This allows ECS to perform a [rolling update](https://docs.aws.amazon.com/AmazonECS/latest/bestpracticesguide/service-options.html) when new code is deployed: it first spins up a new container, verifies that it is healthy, then stops the old container.
@@ -1253,7 +1262,7 @@ In this section, we setup networking rules for our service.  There are a number 
 
 VPC stands for "[Virtual Private Cloud](https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html)," which is an isolated set of cloud resources in a virtual network.  Every AWS account comes with a default VPC, which we'll use here.  You can setup additional VPCs if you need [additional isolation](https://stackoverflow.com/questions/66115482/when-should-i-create-different-vpcs-and-not-just-different-subnets) (something you might do for multiple environments in a production application, for example).  Think of them as a private network for your AWS resources.
 
-Most of the frontend resources we created are not in your VPC, which makes sense given that these services are designed to be publicly available (CloudFront, public DNS Service, public Certificate Authority, etc.).  The same is true of the AWS services we've used where you don't control the underlying compute resources, like [ECR](https://docs.aws.amazon.com/AmazonECR/latest/userguide/vpc-endpoints.html), [Secrets Manager](https://aws.amazon.com/blogs/security/how-to-connect-to-aws-secrets-manager-service-within-a-virtual-private-cloud/), and [s3](https://stackoverflow.com/questions/52093540/s3-buckets-are-not-residing-in-vpcs).
+Most of the frontend resources we created are not *in* your VPC, which makes sense given that these services are designed to be publicly available (CloudFront, public DNS Service, public Certificate Authority, etc.).  The same is true of the AWS services we've used where you don't control the underlying compute resources, like [ECR](https://docs.aws.amazon.com/AmazonECR/latest/userguide/vpc-endpoints.html), [Secrets Manager](https://aws.amazon.com/blogs/security/how-to-connect-to-aws-secrets-manager-service-within-a-virtual-private-cloud/), and [s3](https://stackoverflow.com/questions/52093540/s3-buckets-are-not-residing-in-vpcs).
 
 In contrast, our server-side code and associated resources are within our VPC (ECS Service and ALB).  This gives us control over networking and how and whether to expose them to incoming traffic.
 
@@ -1265,7 +1274,7 @@ Within each AWS Region, there are sub-regions called [availability zones](https:
 
 Within your VPC, you have access to a number of "[subnets](https://docs.aws.amazon.com/vpc/latest/userguide/configure-subnets.html)," which each reside in a single availability zones.  Thus, subnets are subdivisions of your VPC that are located in the various availability zones in your AWS region.
 
-Subnets can be made public by assigning public IPs to resources in them and allowing public Internet traffic.  You might do this if, for instance, you were hosing a web application (such as a Next server for SSR).  You can also keep subnets private for additional security for services like Databases.  You don't assign public IPs to resources in private subnets, and only allow access to those resources from other subnets within your VPC.
+Subnets can be made public by assigning public IPs to resources in them and allowing public Internet traffic.  You might do this if, for instance, you were hosting a web application (such as a Next server for SSR).  You can also keep subnets private for additional security for services like Databases.  You don't assign public IPs to resources in private subnets, and only allow access to those resources from other subnets within your VPC.
 
 Here's an example diagram from the [AWS docs on VPCs and Subnets](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-example-web-database-servers.html) showing such a setup with a web server in public subnets and a database in private subnets across two availabilty zones.
 
@@ -1286,7 +1295,7 @@ Now that we have a better understanding of these AWS networking concepts, let's 
   - Add an inbound rule: Custom TCP on port 1337 from anywhere. We'll update this shortly to restrict access to only our load balancer.
 - Keep the Public IP turned on.  We'll limit access later using a second Security Group for our load balancer.
   - Turning off the Public IP would be more secure, but would add a lot of complexity and cost.  We could use [Private VPC endpoints](https://docs.aws.amazon.com/whitepapers/latest/aws-privatelink/what-are-vpc-endpoints.html) to route traffic between our ECS Service and other AWS services without using the public Internet, but they would take more work to setup and they're not free.
-  - Here, we'll settle for restricting all public access with Security Group, even though a public IP is assigned.
+  - Here, we'll settle for restricting all direct public access to our ECS Service with Security Groups, even though a public IP is assigned.
 
 ![ecs service networking](assets/ecs-service-networking.png)
 
@@ -1315,7 +1324,7 @@ Load balancers perform health checks on the target group, regularly pinging the 
 
 We need to update our healthcheck settings because the ALB is expecting a code 200 response, but Strapi sends an empty [204](https://www.webfx.com/web-development/glossary/http-status-codes/what-is-a-204-status-code/#:~:text=A%20204%20status%20code%20is%20used%20when%20the%20server%20successfully,such%20as%20a%20DELETE%20request.) response instead
 
-- Go to EC2, where we'll manage our Load Balancer and Security Groups.
+- Go to [EC2](https://aws.amazon.com/pm/ec2), where we'll manage our Load Balancer and Security Groups.
 - Click Target Groups on the left-hand side.
 - Select your Target Group.
 - Select the Health checks tab, and click Edit.
@@ -1364,16 +1373,16 @@ There are a couple new concepts in this section as well:
 
 ![ecs security group](assets/ecs-security-group.png)
 
-- Verify that you can't reach Strapi directly on its public IP.  To to ECS -> your Cluster -> your Service -> Tasks tab -> your Task -> Public IP on port 1337.
+- Verify that you can't reach Strapi directly on its public IP.  Go to ECS -> your Cluster -> your Service -> Tasks tab -> your Task -> Public IP -> Go to that IP in your browser on port 1337.
 
 # Setup API DNS
 
-Now let's serve our Strapi app from a subdomain on our domain.
+Now let's serve our Strapi app from a subdomain, like `api.jss.computer`.
 
 - Go to Route 53, click  Hosted Zones, and choose your Hosted Zone.
 - Click Add record.
 - Add your subdomain in Record name.  We'll use `api`.
-- Keep it as an A record.
+- Keep it as an A record.  (An "A record" is the most [fundamental DNS](https://www.cloudflare.com/learning/dns/dns-records/dns-a-record/#:~:text=The%20%22A%22%20stands%20for%20%22,records%20only%20hold%20IPv4%20addresses.) record, which associates a domain with an IP Address.)
 - Switch on the Alias toggle.
 - Choose Alias to Application and Classic Load Balancer.
 - Choose us-east-1.
@@ -1386,9 +1395,11 @@ Try curling your service at the subdomain `curl https://api.jss.computer/api/new
 
 ![api dns](assets/curl-api.png)
 
+Our backend is deployed! 🎉
+
 # Setup Backend CI/CD
 
-Let's set up our backend CI/CD Pipeline.  We'll need to create a pipeline user with all of the necessary permissions.  Then we'll need to setup our GitHub Action.
+Now let's set up our backend CI/CD Pipeline.  We'll need to create a pipeline user with all of the necessary permissions.  Then we'll need to setup our GitHub Action.
 
 To make it easier to verify that new code has been deployed, let's commit our database file.  Then we can just add another item to the news feed to verify the new container got deployed.
 
@@ -1413,7 +1424,7 @@ Why do we need to pass roles to our ECS Service and Task?  AWS often requires yo
 ### Create Policy
 
 - Go to IAM, then Policies, then Create policy.
-- Add the following JSON, and replace the ECR Repo ARN, ECS Task Role ARN, and ECS Task Execution Role ARN:
+- Add the following JSON, and replace the ECR Repo ARN, ECS Service ARN,  and ECS Task Execution Role ARN:
 
 ```json
 {
@@ -1488,13 +1499,23 @@ Why do we need to pass roles to our ECS Service and Task?  AWS often requires yo
 
 ## Commit Task Definition
 
-We're going to need to commit our task definition into our repo.  It's probably easiest to copy it from the console.
+We're going to need to commit our task definition JSON into our repo.  It's probably easiest to copy it from the console.
 
 - Go to ECS -> Task Definitions (on the left-hand menu) -> your Task Defition -> JSON tab.
 - Copy it and save it to your repo at `.aws/task-definition.json`.
 - Commit.
 
 Take a look at the Task Definition.  You'll see one reason why using Secrets Manager was important.  If we didn't do that, we'd have to commit our secrets into our GitHub repo, which is a no-no.
+
+```json
+"secrets": [
+  {
+    "name": "APP_KEYS",
+    "valueFrom": "arn:aws:secretsmanager:us-east-1:225934246878:secret:api-secrets-f7e7849-iZ7epS:APP_KEYS::"
+  },
+  ...
+]
+```
 
 ## Add GitHub Action
 
@@ -1575,7 +1596,7 @@ jobs:
           wait-for-service-stability: true
 ```
 
-This workflow runs on every change to the `main` branch. At a high-level this workflow:
+This workflow runs on every change to the `main` branch. At a high-level, this workflow:
 - Checks out your code.
 - Sets up the AWS CLI with your access keys.
 - Logs into your ECR repo.
@@ -1611,7 +1632,7 @@ We're finally in a position to hook up our frontend and backend!
 
 ## Create Newsfeed component
 
-We're going to create a [client component](https://nextjs.org/docs/app/building-your-application/rendering/client-components) to render our newsfeed.  Client Components only render on the client at run time, as opposed to Next's typical strategy of rendering static content at build or request time.  This allows us to pull news feed items in real time.  Because we are generating a static build with Next, this is our only option to pull data in real time on every page load.
+We're going to create a [client component](https://nextjs.org/docs/app/building-your-application/rendering/client-components) to render our newsfeed.  Client Components only render on the client at run time, as opposed to Next's typical strategy of rendering static content at build or request time on the server.  This allows us to pull news feed items in real time.  Because we are generating a static build with Next rather than setting up a server, this is our only option to pull data in real time on every page load.
 
 However, the SEO and page-load benefits Next offers are lost for client components, so Next encourages you to "[move client components down the tree](https://nextjs.org/docs/app/building-your-application/rendering/composition-patterns#moving-client-components-down-the-tree)." You want to keep as much of your application statically rendered as possible, and only client-render what you need to.
 
@@ -1713,7 +1734,7 @@ In your frontend GitHub repo, go to Settings -> Secrets and variables -> Actions
 
 Add an `API_URL` for your api subdomain, such as `https://api.jss.computer`.
 
-In your GitHub Action file, add an `env:` key before the `steps:` key to read that variable.
+In your GitHub Action file, add an `env:` key before the `steps:` key to use that variable when building your site.
 
 ```yaml
     env:
