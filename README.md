@@ -273,6 +273,8 @@ Every decision in DevOps comes with tradeoffs, often involving cost.  We can spe
 
 #### AWS Free Tier
 
+The AWS [free tier](https://aws.amazon.com/free) is pretty generous for your first year.  Lots of services are covered up to a large amount of usage, but some other services aren't covered at all (mainly Fargate for our purposes).
+
 I'll try to keep us within the AWS free tier as much as possible here, but doing so entirely is very difficult (see this meme).  You should be able to register a domain for $12, and if you tear down your infrastructure after the tutorial, the remaining costs should be well under $10.
 
 ![AWS Free Tier Meme](assets/aws-free-tier-meme.png)
@@ -371,7 +373,7 @@ We need to let Next know that we want to build a static site, rather than host o
 
 # Setup your AWS account
 
-Now it's time to get our frontend deployed!  To go further in depth on a lot of the issues we'll be covering when deploying our frontend through the console, I recommend checking out Steve Kinney's great Frontend Masters course [AWS For Front-End Engineers](https://frontendmasters.com/courses/aws-v2/).
+Now it's time to get our frontend deployed!  To go further in depth on a lot of the following issues, I recommend checking out Steve Kinney's great Frontend Masters course [AWS For Front-End Engineers](https://frontendmasters.com/courses/aws-v2/).
 
 Setting up an AWS account is a bit more complex than you might think. We'll need to:
 - create the account
@@ -379,17 +381,19 @@ Setting up an AWS account is a bit more complex than you might think. We'll need
 - setup multi-factor authentication (MFA) for our root user.
 - create an Admin user and setup MFA.
 
-We'll only use our root user for things like billing.  Any creation of cloud resources will be done with our Admin user instead, who will have most privileges aside from billing.  This is a security best practice and limits the damage that could be done if our Admin credentials were compromised.
+We'll only use our root user for things like billing.  Any creation of cloud resources will be done with our Admin user instead.  This is a security best practice and limits the damage that could be done if our Admin credentials were compromised.
 
 ## A note on AWS Regions
 
-AWS has many "regions" around the world in which your cloud infrastructure can live (these correspond to physical data centers).  There are a few things that *must* be in us-east-1 in North Virgina, like CloudFront distributions and TLS certificates.  To make our lives easier, we'll use us-east-1 for everything.
+AWS has many "regions" around the world in which your cloud infrastructure can live (these correspond to groups of physical data centers).  They are designed to be [isolated and independent](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html) from each other for fault tolerance.
 
-If for some reason you don't see your resources, make sure the us-east-1 region is selected in the dropdown.
+There are a few things that *must* be in the us-east-1 Region in North Virgina, like CloudFront distributions and SSL certificates.  To make our lives easier, we'll use us-east-1 for everything.
+
+If for some reason you don't see your resources in the console, make sure the us-east-1 region is selected in the dropdown.
 
 ## Sign up
 
-Sign up will require a personal credit card.  We'll be incurring some costs but they should be quite low--$12 or so to register a domain, and under $10 for our infrastructure if you tear it down after building it.  It's a worthwhile investment to learn valuable skills!
+Sign up will require a personal credit card.  We'll mostly be within the free tier, but not entirely.  The costs we'll incur should be quite low-$12 or so to register a domain, and under $10 for our infrastructure if you tear it down after building it.  It's a worthwhile investment to learn valuable skills!
 
 - Go to https://aws.amazon.com/
 - Click the sign up button in the nav bar.
@@ -398,14 +402,12 @@ Sign up will require a personal credit card.  We'll be incurring some costs but 
 - Enter your root password.
 - Enter your personal info.
 - Enter your credit card.
-- Verify with SMS (try the voice captcha option if you have trouble reading the captcha)
+- Verify with SMS (try the voice captcha option if you have trouble reading the captcha).
 - Choose the basic plan.
 
 ## Setup billing alerts
 
-The AWS [free tier](https://aws.amazon.com/free) is pretty generous for your first year.  Lots of services are covered up to a large amount of usage, but mysteriouly some smaller services aren't covered at all (load balancers and Fargate for our purposes).  As I said before, we'll mostly be within the free tier, but not entirely.
-
-While we can't tell AWS not to do anything that costs money (how convenient), we can at least set up some notifications to alert us if we go outside of the free tier.
+While we can't tell AWS not to do anything that costs money, we can at least set up some notifications to alert us if we go outside of the free tier.
 
 - Navigate to the billing page by typing “billing” in text box.  This is an easy way to navigate through AWS's many services.
 - Go to billing preferences.
@@ -417,72 +419,73 @@ While we can't tell AWS not to do anything that costs money (how convenient), we
 
 ## Create account alias
 
-- Go to your console dashboard and choose create account alias.  This is useful to have an easy to remember name for your account instead of the autogenerated name.
+- Go to your console dashboard and choose create account alias.  This provides an easy to remember name for your account instead of the autogenerated name.
 
 ## Setup MFA
 
-Let's secure our console access with MFA.
+Let's secure our console access with Multi-Factor Authentication(MFA).
 
-- Search for IAM in the text bar.  IAM is the AWS service where we create and manager users and their access keys.  We'll be spending a fair amount of time with it.
+- Search for IAM in the text bar.  [IAM](https://aws.amazon.com/iam/) is the AWS service where we create and manager users and their access keys.  We'll be spending a fair amount of time with it.
 - Setup 2FA for your root user.  I used the Google Authenticator app.
 
 ## Create our Admin user
 
-Let's create an Admin user that we'll use for the rest of the course.  For security puposes, after creating the Admin, we'll log out of the root user and not use it again.
+We've got our root user setup, so now let's create an Admin user that we'll use for the rest of the course.  The root user will only be used for billing.
 
 - In IAM, choose users, then the add user button.
 
+- Add a username of Admin, provide access to the console, and choose create IAM user.  Create a custom password.  Since it's a user for us, we won't create a temporary password.
+
 ![add user](assets/IAM-add-admin-user.png)
 
-- Add a username of Admin, provide access to the console, and choose create IAM user.  Create a custom password.  Since it's a user for us, we won't create a temporary password.
+- Next, set the permissions. Choose attach policies directly, then search for admin and choose AdministratorAccess.  Push the + button to see the policy JSON, and you'll see it's as permissive as possible: this user can do everything to everything.
 
 ![admin permissions](assets/admin-permissions.png)
 
-- Next, set the permissions. Choose attach policies directly, then search for admin and choose AdministratorAccess.  Push the + button to see the policy JSON, and you'll see it's as permissive as possible: this user can do everything to everything.
 - Hit the next button.  No need to add tags, which are mainly used for tracking and classifying resources.  Hit create user.
 
 ## Login as Admin and add MFA
 
 - Lot out of root and log in as the Admin user we just created.
-- Add MFA for this user (under the Security Credentials tab).  Choose a different phone name (you can append -admin).
+- Add MFA for this user (under the Security Credentials tab).  Choose a different phone name (you can use the same phone number and just append -admin to the name).
 
 With that, our account is set up and we can start building our infrastructure!
 
 # Register a domain
 
+Let's start by registering a domain, so that it has time to propagate by the time we need it.
+
 Go to [Route 53](https://us-east-1.console.aws.amazon.com/route53/v2/home#Dashboard), the AWS DNS service used for registering and managing domain names.
 
-- Register a domain name for the course.  We're doing this first so that it has time to propagate by the time we need it.
-- The cheapest ones seem to be about $12.
+- Register a domain name for the course.  The cheapest ones seem to be about $12.
 - I went with `jss.computer`, one of few sites with my initials available.
 - Make sure privacy protection is on (the default) or your info will be public.
 
 # Upload our frontend build directory to s3
 
-AWS s3 is the basic service used for storing files.  We can use a s3 "bucket" to store our frontend assets and serve them up to the world.  The [free tier](https://aws.amazon.com/free) provides 5 gigs of storage.
+AWS [s3](https://aws.amazon.com/s3/) is the basic service used for storing files.  We can use a s3 "bucket" to store our frontend assets and serve them up to the world.  The [free tier](https://aws.amazon.com/free) provides 5 gigs of storage.
 
 s3 is a key/value store for names (file names) and "objects" (aka files).  They're stored in a flat hierarchy, though you can add directory paths to your file names if you want.
 
 ## Create a bucket for your site
 
 - Click create bucket.
-
-![create bucket](assets/create-bucket.png)
-
 - Use your website's name for the bucket name.
 - Turn off ACLs (default option).
 - Unclick the Block all public access checkbox.  This will allow us to host our website directly from our bucket.  We'll turn this off later on in the course as our infrastructure gets more sophisticated.
 - Keep all other default options, including disabling versioning, which we won't need for our purposes.
+
+![create bucket](assets/create-bucket.png)
 
 ## Add a bucket policy allowing access
 
 - Go to your bucket, then the Permissions tab, then click the edit button on the Bucket Policy.
 - You can create a policy JSON document with the AWS [policy generator](https://awspolicygen.s3.amazonaws.com/policygen.html).
 - Here, we want to let everyone access our bucket for now.
-- Choose s3 Bucket policy from the dropdown
-- Choose `*` for the principal, meanign we want the policy to apply to everyone.
+- Choose s3 Bucket policy from the dropdown.
+- Choose `*` for the principal, meaning we want the policy to apply to everyone.
 - For actions, search for GetObject.
-- For the ARN (Amazon Resource Name), copy the ARN from your bucket under the Properties tab.  ARNs are unique identifiers for cloud resrouces in AWS.  We'll be using them a lot.
+- For the ARN (Amazon Resource Name), copy the ARN from your bucket under the Properties tab.  [ARNs](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html) are unique identifiers for cloud resources in AWS.  We'll be using them a lot.
 - For the ARN, you need to add `/*` at the end, meaning all objects within the bucket.
 - Your policy should look like this:
     ```json
@@ -512,22 +515,22 @@ This is what AWS permission policy JSON docs look like.  They specify *who* can 
 - Go to the Objects tab and click upload.
 - Click add files, and upload everything from the `/out` directory.
   - If you choose upload entire directory instead, you'll have every file prefixed with the directory name.
-- Click add folder and upload the `/_next` folder in `/out`.
-- After uploading, click on the `index.html` object, then click the Object URL link (something like `https://s3.amazonaws.com/jss.computer/index.html`).  We're officially on the Internet!
+- Click add folder and upload the `/_next` subdirectory folder in `/out`.
+- After uploading, click on the `index.html` object, then click the Object URL link (something like `https://s3.amazonaws.com/jss.computer/index.html`).  We're officially on the Internet! 🎉
 
 ## Enable Static Website Hosting
 
-- We'll setup s3 to host our website.  In the bucket properties tab, scroll down to the bottom and edit the Static website hosting property.
+- We'll setup s3 to host our website directly at first.  In the bucket properties tab, scroll down to the bottom and edit the Static website hosting property.
 - Click enable.
+- Choose `index.html` for the index document (go figure), and choose `404.html` as the error page.  `404.html` is the 404 page automatically generated by Next.
 
 ![enable static hosting](assets/enable-static-hosting.png)
 
-- Choose `index.html` for the index document (go figure), and choose `404.html` as the error page.  `404.html` is the 404 page automatically generated by Next.
 - Back in the bucket properties tab, go to the URL in the static website hosting section (should be something like `http://test-jss-computer.s3-website-us-east-1.amazonaws.com`).
 
 Kick the tires a bit here.  You'll see that linking between our pages works.  But refreshing at `/foo` doesn't work, and we get the 404 page (we'll fix this).  Try going to a nonexistent page and you should correctly see the 404 page.
 
-Cool!  We've got a website up, but there are a lot of improvements left.  We're on http instead of https, and our browser says our site isn't secure.  The url is pretty gross.  We had to manually upload the files. And the files are only hosted in one AWS region rather than globally.  Let's fix all that!
+Cool!  We've got a website up, but there are a lot of improvements left.  We're on http instead of https, and our browser says our site isn't secure.  The url is pretty gross.  The files are only hosted in one AWS region rather than globally.  And we had to manually upload the files.  Let's fix all that stuff!
 
 # Setup the AWS CLI
 
@@ -1147,7 +1150,7 @@ There are a few different pieces in ECS that all work together to run our contai
 
 In addition, we are going to place an [Application Load Balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html) (ALB) in front of our ECS Service.  The ALB will let us easily point a subdomain to our service using Route 53 (like https://api.jss.computer) and use https.  Then, we'll only allow traffic going to our container from the ALB, rather than directly.
 
-We're mainly using the ALB here for networking purposes, but it can do much more.  As the name suggests, it can route traffic between multiple instances of your application using various strategies to handle increased usage.  It also performs health checks on our containers and will restart containers that have crashed.  Sadly, the ALB is also outside of the free tier.  While the ECS Service can be stopped without deleting it, you'd have to delete the ALB to prevent being charged.
+We're mainly using the ALB here for networking purposes, but it can do much more.  As the name suggests, it can route traffic between multiple instances of your application using various strategies to handle increased usage.  It also performs health checks on our containers and will restart containers that have crashed.  While the ECS Service can be stopped without deleting it, you'd have to delete the ALB to prevent being charged.
 
 ## Create a Cluster
 
@@ -3046,7 +3049,7 @@ Commit and push your `dev` branch, and verify that the action runs and succeeds.
 
 When you need to tear down your dev environment, you can run [`pulumi destroy`](https://www.pulumi.com/docs/cli/commands/pulumi_destroy/).  This makes it very easy to manage your resources and prevent any surprise bills.  (You won't be able to delete users with access keys without deleting the access keys first in the console.)
 
-For both the prod stack and the dev stack, the two services that you'll be charged for the most on the free tier are your load balancers and your Fargate Service.  The load balancers must be deleted outright to prevent a charge.  The ECS Service can be set with a desired task count of 0 to keep the service resource in AWS without being charged for Fargate usage.
+For both the prod stack and the dev stack, the two services that you'll be charged for the most on the free tier are your load balancers (after 750 hours a month) and your Fargate Service.  The load balancers must be deleted outright to prevent a charge.  The ECS Service can be set with a desired task count of 0 to keep the service resource in AWS without being charged for Fargate usage.
 
 Keep in mind that the [AWS free tier](https://aws.amazon.com/free/) generally only covers your first year on AWS.  To be extra sure that you won't get surprise bills a year from now, delete *all* resources you created that you don't want to use.
 
