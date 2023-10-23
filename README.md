@@ -300,9 +300,9 @@ Let's start with building our frontend so we have something to deploy!
 
 ## Why Next.js
 
-We'll be using Next.js to build our frontend, which is a framework built on top of React that provides things like routing and server-side-rendering out-of-the-box.  The official React docs recommend using a framework like Next.js for production applications, and it is becoming broadly adopted by the React community.
+We'll be using Next.js to build our frontend, which is a framework built on top of React that provides things like routing and server-side rendering out of the box.  The official React docs [recommend](https://react.dev/learn/start-a-new-react-project) using a framework like Next.js for production applications, and it is becoming broadly adopted by the React community.
 
-Compared to vanilla React app with create-react-app, Next provides much greater control over how your application is rendered.  Vanilla React is rendered on the client--only an empty HTML file is sent to the browser, the React app attaches to an empty div, and renders the entire application with JavaScript.  This poses challenges for SEO, since web crawlers may not render the JavaScript when indexing your site.  It also can lead to slower page loads for users.
+Compared to vanilla React app with create-react-app, Next provides much greater control over how your application is rendered.  Vanilla React is rendered on the client-only an empty HTML file is sent to the browser, the React app attaches to an empty div, and renders the entire application with JavaScript.  This poses challenges for SEO, since web crawlers may not render the JavaScript when indexing your site.  It also can lead to slower page loads for users.
 
 > The body of a vanilla React app's `index.html` is just:
 > ```html
@@ -313,11 +313,11 @@ Compared to vanilla React app with create-react-app, Next provides much greater 
 > ```
 > ... Not very informative to web crawlers that might not execute JavaScript!
 
-Next allows much more granular control over where and when your application and its components are rendered.  You can statically render pages to HTML at build time when the content changes infrequently.  You can server-render pages at request time if content changes frequently and things like SEO and fast page-loads are still important (think of e-commerce sites).  And you can also client-render pages and components for dynamic or interactive content, though Next encourages you to client-render as little as possible.
+Next allows much more granular control over where and when your application and its components are rendered.  You can statically render pages to HTML at build time when the content changes infrequently, for the best performance.  You can server-render pages at request time if content changes frequently and SEO and fast page-loads are still important (think of e-commerce sites).  And you can also client-render pages and components for dynamic or interactive content, though Next encourages you to client-render [as little as possible](https://nextjs.org/docs/app/building-your-application/rendering/composition-patterns#moving-client-components-down-the-tree).
 
-To avoid setting up a server for our frontend, we'll primarily statically-render our site to HTML at build time, and reap all the SEO and performance benefits.  But we'll also load frequently changing data from our news feed in a client-rendered component by fetching data from our backend, so our site will always be up-to-date.  Our app will be built as static assets, just like a vanilla React site, so that we can serve it globally on a CDN for fast loads world-wide.
+To avoid setting up a server for our frontend, we'll primarily statically-render our site to HTML at build time, and reap all the SEO and performance benefits.  Our app will be built as static assets, just like a vanilla React site, so that we can serve it globally on a CDN for fast loads world-wide. But we'll also fetch frequently changing data from our backend and display it in a client-rendered news feed component.
 
-Check out the excellent [Next docs ](https://nextjs.org/) for a deeper dive on these concepts.  To go even deeper, Josh Comeau's [The Joy of React](https://www.joyofreact.com/) course also has some excellent Next content.
+Check out the excellent [Next docs ](https://nextjs.org/learn/foundations/about-nextjs) for a deeper dive on these concepts.  To go even deeper, Josh Comeau's [The Joy of React](https://www.joyofreact.com/) course also has some excellent Next content.
 
 ## Create Next project
 
@@ -360,7 +360,7 @@ We need to let Next know that we want to build a static site, rather than host o
 
     ```
 - Run `npm run build`.  The output shows which files were statically generated with ` ○ (Static)`.
-- Checkout the `./out` directory with our built files.  You'll see that, instead of the single empty html file we'd get with a vanilla React App, we get two html files that contain all the content.  This is what enables search engines to easily crawl our site and provides for quick page loads (more specifically, a fast [First Contentful Paint](https://web.dev/fcp/)).
+- Checkout the `./out` directory with our built files.  You'll see that, instead of the single empty html file we'd get with a vanilla React App, we get two html files that contain all the content.  This is what enables search engines to easily crawl our site and provides for [quick page loads](https://nextjs.org/docs/app/building-your-application/rendering/server-components#benefits-of-server-rendering) (more specifically, a fast [First Contentful Paint](https://web.dev/fcp/)).
     ```html
     <body class="__className_20951f">
         <h1>hello world from the foo page!</h1>
