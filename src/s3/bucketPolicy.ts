@@ -3,7 +3,6 @@ import * as aws from '@pulumi/aws';
 import { Bucket } from '@pulumi/aws/s3';
 import { Distribution } from '@pulumi/aws/cloudfront';
 import { User } from '@pulumi/aws/iam';
-import { getARN } from '../utils/getARN';
 
 export const createBucketPolicyDocument = ({
   bucket,
@@ -37,7 +36,7 @@ export const createBucketPolicyDocument = ({
         principals: [
           {
             type: 'AWS',
-            identifiers: [getARN(pipelineUser)],
+            identifiers: [pipelineUser.arn],
           },
         ],
         actions: ['s3:PutObject', 's3:ListBucket', 's3:DeleteObject'],

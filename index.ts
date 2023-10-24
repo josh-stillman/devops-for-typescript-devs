@@ -7,6 +7,7 @@ import { getARN } from './src/utils/getARN';
 import { requestRewriterLambda } from './src/lambda@edge/requestRewriter';
 import { getExistingCertificate } from './src/acm/getCertificate';
 import { createBackend } from './src/backend/backend';
+
 // Import the program's configuration settings.
 const config = new pulumi.Config();
 const path = config.get('path') || './www';
@@ -139,6 +140,7 @@ const record = new aws.route53.Record(domainName, {
   ],
 });
 
+// Create Backend
 export const {
   loadBalancerUrl,
   repoName,

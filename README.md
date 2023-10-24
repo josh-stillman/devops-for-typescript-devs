@@ -1751,32 +1751,32 @@ Commit, push, and verify that the newsfeed works on your deployed frontend.
 
 We've come a long way!  We've deployed an entire fullstack application to AWS though the console.  Enjoy the moment.  You've earned it.  🎉
 
-But suppose you were then asked to stand up a second (or third, or fourth) environment for the app.  You'd probably panic if you thought you had to go through all that work in the console again!  😭  In the remainder of the course, we're going to see how Pulumi, an Infrastructure as Code tool, can help us streamline the process and get much more control over our cloud resources.  It will make things like standing up and tearing down multiple environments much easier for us.
+But suppose you were then asked to stand up a second (or third, or fourth) environment for the app.  You'd probably panic if you thought you had to go through all that work in the console again!  😭  In the remainder of the course, we're going to see how Pulumi, an Infrastructure as Code tool, can help us streamline the process and get much more control over our cloud resource
 
 # Enter Pulumi
 
-Pulumi is an Infrastructure as Code (IaC) framework that will let us use TypeScript to create and manage cloud resources in AWS.  (Pulumi has bindings for other programming languages and the other major cloud providers as well.)
+[Pulumi](https://www.pulumi.com/) is an Infrastructure as Code (IaC) framework that will let us use TypeScript to create and manage cloud resources in AWS.  (Pulumi has bindings for other programming languages and the other major cloud providers as well.)
 
 ## Infrastructure as Code
 
 [Infrastructure as Code](https://www.pulumi.com/what-is/what-is-infrastructure-as-code/) tools allow us to use code to define our cloud resources.  The code you write represents the desired state of your infrastructure.  When you deploy, the framework compares the desired state to the existing state, then makes the required changes in the cloud.  These tools offer much greater control and power over the point-and-click method or writing shell scripts to make API calls with a CLI.  Among the greatest benefits are:
 
 - ***Documentation***.  Imagine you had to write up all the instructions to deploy even the simple environment we just did through the console, for the benefit of your team and organization. 😬  I can assure you it wasn't so easy!  With the console, we're reliant on our faulty memories to document what we did, and list all of the many pieces of our infrastructure.  With IaC, the code serves as documentation of exactly what infrastructure was deployed.
-- ***Versioning***.  We get to use git with IaC!  This gives us a full history of the changes to our infrastructure, and all of the benefits we associate with git: code sharing, rollbacks, debugging, code-reviews, the ability to set up [CI/CD pipeline](https://www.pulumi.com/docs/using-pulumi/continuous-delivery/) for our infrastructure code, etc.
-- ***Repeatability***.  Modern software projects often involve multiple environments, such as Development, QA, UAT/Staging, Production, feature preview environments, etc.  Obviously, the point-and-click approach isn't scalable.  With IaC, spinning up a new environment is comparatively quite easy.  You'd just change some of the configuration variables and run your program!
+- ***Versioning***.  We get to use git with IaC!  This gives us a full history of the changes to our infrastructure, and all of the benefits we associate with git: code sharing, rollbacks, debugging, code-reviews, the ability to set up [CI/CD pipelines](https://www.pulumi.com/docs/using-pulumi/continuous-delivery/) for our infrastructure code, etc.
+- ***Repeatability***.  Modern software projects often involve multiple environments, such as Development, QA, UAT/Staging, Production, feature preview environments, etc.  Obviously, the point-and-click approach isn't scalable.  With IaC, spinning up (or tearing down) a new environment is comparatively quite easy.  You'd just change some of the configuration variables and run your program!
 - ***Testability***.  Because our infrastructure is code, we can test it!  We can ensure that our organization's requirements (security, scalability, best practices, cost controls, etc.) are met before we deploy.
-- ***State Management***.  Even if we were to write shell scripts with calls to the AWS CLI, the script wouldn't know which infrastructure has already been deployed, and what infrastructure is new or needs to change. IaC tools keep track of the state of your infrastructure for you and determine which code changes need to be reflected in your cloud infrastructure.
-- ***Preventing Vendor Lock-in***.  Suppose Azure or Google Cloud was willing to cut us a huge deal on our bill.  How would we move our infrastructure if we relied on the point-and-click method or a proprietary tool like the AWS CLI?  IaC tools like Pulumi and Terraform provide bindings for all the major cloud providers, making migrating between cloud providers comparatively much easier.
+- ***State Management***.  Even if we were to write shell scripts with calls to the AWS CLI, the script wouldn't know what infrastructure has already been deployed, and what infrastructure is new or needs to change. IaC tools keep track of the state of your infrastructure for you and determine which code changes need to be reflected in your cloud infrastructure.
+- ***Preventing Vendor Lock-in***.  Suppose Azure or Google Cloud was willing to cut us a huge deal on our bill.  How would we move our infrastructure if we relied on the point-and-click method or a proprietary tool like the AWS CLI?  IaC tools like Pulumi and Terraform provide bindings for all the major cloud providers, making migrating between cloud providers comparatively easier.
 
 ## Infrastructure as ***Code***
 
-[Traditional IaC tool like Terraform](https://www.pulumi.com/docs/concepts/vs/terraform/) use JSON or YAML to define resources in a Domain-Specific Language.  In contrast, Pulumi lets us use a full-fledged programming language like TypeScript, allowing us to do things like create loops, functions, classes, and more.  We get to use all the tools we know and love as developers: our IDE with autocompletion, our type checker, our testing framework, our formatter and linter.  We get to create abstractions and encapsulations with classes and functions--abstractions that can be reused and serve as higher-level building blocks for your organization's infrastructure.  Pulumi's type definitions for cloud resources guide you in inputting all the required information, and show you all the possibilities at a glance.  And we can do things like split our code into multiple files and directories and  create helper functions to keep our infrastructure code easy to follow.
+[Traditional IaC tool like Terraform](https://www.pulumi.com/docs/concepts/vs/terraform/) use JSON or YAML to define resources in a Domain-Specific Language.  In contrast, Pulumi lets us use a full-fledged programming language like TypeScript.  This allows us to do things like create loops, functions, classes, and more.  We get to use all the tools we know and love as developers: our IDE with autocompletion, our type checker, our testing framework, our formatter and linter.  We get to create abstractions and encapsulations with classes and functions, which can then be reused and serve as higher-level building blocks for your organization's infrastructure.  Pulumi's type definitions for cloud resources guide you in inputting the required information.  And we can do things like split our code into multiple files and directories and  create helper functions to keep our infrastructure code easy to follow.
 
 Pulumi is an especially easy way to get started with IaC as a developer, since it uses the tools we're already familiar with.
 
 ## Gameplan
 
-We're going to set up a second environment for our application, which we'll call Development.  Much as we did through the console, we'll start by deploying our frontend, setting up frontend CI/CD, then our backend, and then our backend CI/CD.  We'll reuse what we can from prior steps, such as our Route 53 domain and our ACM SSL certificate.
+We're going to set up a second environment for our application, which we'll call Development (or dev).  Much as we did through the console, we'll start by deploying our frontend, setting up frontend CI/CD, then our backend, and then our backend CI/CD.  We'll reuse what we can from prior steps, such as our Route 53 domain and our ACM SSL certificate.
 
 # Install Pulumi
 
@@ -1850,7 +1850,7 @@ const cdn = new aws.cloudfront.Distribution("cdn", {
 
 ### Asynchronous Outputs and Inputs
 
-Notice how the *output* of one step, like creating the s3 bucket, is passed as in *input* to the next step, like creating the CloudFront distribution.  This concept of [outputs and inputs](https://www.pulumi.com/docs/concepts/inputs-outputs/) is key to how Pulumi works.  It's how we hook our resources up with each other.  And it's what allows Pulumi to infer a dependency graph and determine in which order resources must be created when we run `pulumi up`.
+Notice how the *output* of one step, like creating the s3 bucket, is passed as in *input* to the next step, like creating the CloudFront distribution.  This concept of [Outputs and Inputs](https://www.pulumi.com/docs/concepts/inputs-outputs/) is key to how Pulumi works.  It's how we hook our resources up with each other.  And it's what allows Pulumi to infer a dependency graph and determine in which order resources must be created when we run `pulumi up`.
 
 Almost everything Pulumi does is asynchronous.  Pulumi needs to use the AWS CLI to create and modify cloud resources, and has to wait for those API calls to settle.  Afterwards, other Pulumi resources then can access information about the newly created resources.  It manages these async calls through Outputs.
 
@@ -2106,7 +2106,7 @@ const cdn = new aws.cloudfront.Distribution('cdn', {
 ## Deploy
 
 - Run `pulumi up` and deploy.
-- Verify you can reach the site through the URL.
+- Verify you can still reach the site through the URL.
 - Commit.
 
 # Add Lambda@Edge Routing
@@ -2115,7 +2115,7 @@ Next, lets add the Lambda@Edge function to handle the nested routes.
 
 ## Add Handler Function
 
-We'll copy the function we wrote early, but add some TypeScript types.
+We'll copy the function we wrote earlier, but add some TypeScript types.
 
 - Install the community AWS Lambda types with `npm i -DE @types/aws-lambda`.  Pulumi's built-in types don't seem complete for our use case.
 - Create the function in `src/lambda@edge/requestRewriter.ts`;
@@ -2180,6 +2180,8 @@ const rolePolicyAttachment = new aws.iam.RolePolicyAttachment(
   }
 );
 ```
+
+Gotta love the enums for the service principals and managed policies!
 
 ## Create Lambda
 
@@ -2342,7 +2344,7 @@ export const createBucketPolicyDocument = ({
         principals: [
           {
             type: 'AWS',
-            identifiers: [getARN(pipelineUser)],
+            identifiers: [pipelineUser.arn]
           },
         ],
         actions: ['s3:PutObject', 's3:ListBucket', 's3:DeleteObject'],
@@ -2351,6 +2353,8 @@ export const createBucketPolicyDocument = ({
     ],
   });
 ```
+
+Run `pulumi up` to deploy these changes, and commit.
 
 ## Setup GitHub Actions Environments
 
@@ -3090,3 +3094,4 @@ There are a few more refinements I plan to add to the course.
   - Store blog posts in the database and trigger a frontend rebuild when adding new blog posts in Strapi through a GitHub webhook.
 - Use EC2 for our ECS cluster to save costs, and to learn EC2 basics.
 - Fix TODOs in code, like narrowing pipeline user permissions.
+- Does the official AWS JS SDK have the missing types like iam actions? https://github.com/aws/aws-sdk-js-v3
