@@ -2871,7 +2871,7 @@ export const { repoName, serviceName, clusterName, containerName } = createBacke
 
 Run `pulumi up` and let's verify that our infrastructure works!  Go to your api subdomain and verify that you can login at `/admin` with the same credentials as before.  Checkout your frontend and make sure you see the newsfeed.
 
-**TODO** Will this work in a single `pulumi up` or do you need the repo first?
+**TODO** Will this work in a single `pulumi up` or do you need the image to be in the repo first before creating the task definition?  Do you need conditional logic to handle the first/subsequent deploys?
 
 # Add Dev Backend CI/CD
 
@@ -2947,6 +2947,8 @@ export const createBackendPipelineUser = (
 - It creates a new user, and it attaches the policy to the user.
 
 Run `pulumi up` to create the user.  Follow the [steps above](#create-access-key) to create an access key, and write it down.
+
+**TODO**  Narrow permissions here as well.  Doesn't need assumeRole.  https://github.com/aws-actions/amazon-ecs-deploy-task-definition/tree/df9643053eda01f169e64a0e60233aacca83799a/#permissions
 
 ## Setup Environments and Add Secrets to GitHub
 
@@ -3068,17 +3070,19 @@ You can get it from the console.  Or you can run `aws ecs list-task-definitions`
 
 Commit and push your `dev` branch, and verify that the action runs and succeeds.  You could also add a newsfeed item locally in Strapi and commit that to verify that the pipeline succeeds.
 
+Merge your `dev` branch into `main`.
+
 # Tearing Down
 
-When you need to tear down your dev environment, you can run [`pulumi destroy`](https://www.pulumi.com/docs/cli/commands/pulumi_destroy/).  This makes it very easy to manage your resources and prevent any surprise bills.  (You won't be able to delete users with access keys without deleting the access keys first in the console.)
+When you need to tear down your dev environment, you can run [`pulumi destroy`](https://www.pulumi.com/docs/cli/commands/pulumi_destroy/).  This makes it very easy to manage your resources and prevent any surprise bills.  (You won't be able to delete users with access keys without first deleting the access keys in the console.)
 
-For both the prod stack and the dev stack, the two services that you'll be charged for the most on the free tier are your load balancers (after 750 hours a month) and your Fargate Service.  The load balancers must be deleted outright to prevent a charge.  The ECS Service can be set with a desired task count of 0 to keep the service resource in AWS without being charged for Fargate usage.
+For both the prod and dev stacks, the two services that you'll be charged for the most on the free tier are your load balancers (after 750 hours a month) and your Fargate Service (no free tier).  The load balancers must be deleted outright to prevent a charge.  The ECS Service can be set with a desired task count of 0 to keep the ECS Service in AWS without being charged for Fargate usage.
 
 Keep in mind that the [AWS free tier](https://aws.amazon.com/free/) generally only covers your first year on AWS.  To be extra sure that you won't get surprise bills a year from now, delete *all* resources you created that you don't want to use.
 
 # Conclusion
 
-We've come a long way.  We've setup a first full stack environment through the AWS console, getting to know each service as we went.  Then we set up a second environment using Pulumi to see how infrastructure as code can make our lives easier and give us much more control over our cloud resources.
+We've come a long way.  We've setup a first full stack environment through the AWS console, getting to know each service as we went.  Then we set up a second environment using Pulumi to see how infrastructure as code can make our lives easier and give us more control over our cloud resources.
 
 And we've touched most of the major AWS services along the way!  We know how to deploy static assets using a CDN.  We know how to setup DNS and SSL for our apps.  We know how to deploy containerized server-side applications, how to use load balancers to route traffic to them, and how to use security groups to secure them.  We know how to securely store and access secrets.  We know how to create and manage users and permissions, and create CI/CD pipelines.  And we know the basics of infrastructure as code.  These are the fundamental building blocks that you'll use in setting up *any* web application, on any cloud provider, no matter the scale or complexity.
 
@@ -3094,4 +3098,5 @@ There are a few more refinements I plan to add to the course.
   - Store blog posts in the database and trigger a frontend rebuild when adding new blog posts in Strapi through a GitHub webhook.
 - Use EC2 for our ECS cluster to save costs, and to learn EC2 basics.
 - Fix TODOs in code, like narrowing pipeline user permissions.
-- Does the official AWS JS SDK have the missing types like iam actions? https://github.com/aws/aws-sdk-js-v3
+- Continue refactoring Pulumi code.
+- Does the official AWS JS SDK have the missing types I wanted like iam actions enums? https://github.com/aws/aws-sdk-js-v3
