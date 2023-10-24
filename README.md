@@ -1,6 +1,6 @@
 # DevOps for TypeScript Developers <!-- omit from toc -->
 
-Welcome to DevOps for TypeScript Developers!  In this tutorial, we'll learn DevOps fundamentals by deploying a full-stack web app with AWS, Next.js, and Strapi. We'll deploy our first environment through the AWS console to learn the concepts, then we'll deploy our second environment using Pulumi, an infrastructure as code tool for TypeScript.
+Welcome to DevOps for TypeScript Developers!  In this tutorial, we'll learn DevOps fundamentals by deploying a full-stack web app with AWS, Next.js, and Strapi. We'll deploy our first environment through the AWS console to learn the concepts, then we'll deploy our second environment using Pulumi, an infrastructure as code tool for TypeScript.  The app we'll deploy may be simple, but we'll learn most of the fundamental building blocks of AWS along the way.
 
 This repo contains the Pulumi infrastructure code, and the course materials are below.  The frontend repo is [here](https://github.com/josh-stillman/devops-for-typescript-devs-frontend), and the backend repo is [here](https://github.com/josh-stillman/devops-for-typescript-devs-backend).
 
@@ -199,9 +199,9 @@ Welcome to DevOps for TypeScript Developers!  The goal of this tutorial is to ga
 
 In this tutorial, we'll create and deploy a full stack application using Next.js to build a static frontend, and Strapi, a headless CMS, to serve as our backend.  We'll Dockerize Strapi, then we'll set up CI/CD pipelines with GitHub Actions.  We'll deploy our application's first environment through the AWS console to gain familiarity with the concepts.  Then we'll deploy a second development environment using Pulumi, an infrastructure-as-code framework that lets us use TypeScript to create cloud infrastructure.  We'll see how a tool like Pulumi can give us much more power and control when building cloud infrastructure.
 
-The course is more practical than theoretical. These are deep topics, but they will be presented as simply as possible here so we can focus on building.  I'll include some links to other great resources that will let you dive deeper and learn more about the concepts.  But I've found there's a huge gap between a conceptual understanding of these topics and actually hacking through the weeds to deploy a real application.  My hope is that this course demystifies DevOps and provides a practical foundation to start deploying your applications to the world.
+The app we'll build is very simple. But this will allow us to focus on deployment, and learn most of the fundamental building blocks of AWS along the way.  We'll learn the basics of how to deploy frontend static assets with a CDN, how to setup DNS routing with HTTPS, how to deploy containerized server-side applications, how to route traffic using load balancers, how to secure our resources using security groups, how to manage users and permissions, how to manage secrets, how to setup CI/CD pipelines, and how to use Infrastructure as Code tools.  These tools and concepts will provide a foundation to deploy any modern web app on any cloud provider.
 
-The focus here is on deployment, so the site itself will just be a very simple blog.  Please feel free to build on it from here!
+The course is more practical than theoretical. These are deep topics, but they will be presented as simply as possible here so we can focus on building.  I'll include some links to other great resources that will let you dive deeper and learn more about the concepts.  But I've found there's a huge gap between a conceptual understanding of these topics and actually hacking through the weeds to deploy a real application.  My hope is that this course demystifies DevOps and provides a practical foundation to start deploying your applications to the world.
 
 ## Why Learn DevOps as a Developer?
 
