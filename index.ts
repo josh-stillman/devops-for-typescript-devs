@@ -1,18 +1,12 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
-import { createFrontendPipelineUser } from './src/iam/pipelineUser';
-import { createBucketPolicyJSON } from './src/iam/bucketPolicy';
+import { createFrontendPipelineUser } from './src/iam/frontendPipelineUser';
+import { createBucketPolicyDocument } from './src/s3/bucketPolicy';
 import { getARN } from './src/utils/getARN';
 import { requestRewriterLambda } from './src/lambda@edge/requestRewriter';
 import { getExistingCertificate } from './src/acm/getCertificate';
-
-export {
-  backendUrl,
-  repoName,
-  serviceName,
-  clusterName,
-} from './src/backend/backend';
+import { createBackend } from './src/backend/backend';
 
 // Import the program's configuration settings.
 const config = new pulumi.Config();
@@ -119,19 +113,16 @@ const cdn = new aws.cloudfront.Distribution('cdn', {
 
 const pipelineUser = createFrontendPipelineUser(bucket, cdn);
 
-const bucketPolicyJSON = createBucketPolicyJSON({
+const bucketPolicyDocument = createBucketPolicyDocument({
   bucket,
   distribution: cdn,
   pipelineUser,
 });
 
-const attachedBucketPolicy = new aws.s3.BucketPolicy(
-  'bucketPolicyForCloudfrontAndPipelineAccess',
-  {
-    bucket: bucket.id,
-    policy: bucketPolicyJSON.apply(policy => policy.json),
-  }
-);
+const attachedBucketPolicy = new aws.s3.BucketPolicy('s3bucketPolicy', {
+  bucket: bucket.id,
+  policy: bucketPolicyDocument.json,
+});
 
 // Create a DNS A record to point to the CDN for the subdomain.
 const zone = aws.route53.getZoneOutput({ name: domain });
@@ -148,6 +139,15 @@ const record = new aws.route53.Record(domainName, {
     },
   ],
 });
+
+// Create Backend
+export const {
+  loadBalancerUrl,
+  repoName,
+  serviceName,
+  clusterName,
+  containerName,
+} = createBackend();
 
 // Export the URLs and hostnames of the bucket and distribution.
 export const originURL = pulumi.interpolate`http://${bucket.websiteEndpoint}`;

@@ -7,5 +7,5 @@ config:
   code-along:subdomain: dev
   api:containerPort: 1337
   api:containerName: dev-backend-container
-    # cpu: 1024
-    # memory: 2048
+  api:cpu: 256
+  api:memory: 512
