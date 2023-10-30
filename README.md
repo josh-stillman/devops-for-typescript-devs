@@ -1016,6 +1016,8 @@ FROM --platform=linux/amd64 node:18-alpine as build
 RUN apk update && apk add --no-cache build-base gcc autoconf automake zlib-dev libpng-dev vips-dev > /dev/null 2>&1
 ARG NODE_ENV=production
 ENV NODE_ENV=${NODE_ENV}
+ARG PUBLIC_URL=http://localhost:1337
+ENV PUBLIC_URL=${PUBLIC_URL}
 
 WORKDIR /opt/
 COPY package.json package-lock.json ./
@@ -1045,8 +1047,14 @@ At a high level, what's happening here is:
 
 - We're starting our build stage from a Docker image with Alpine Linux and Node installed already.  [Alpine Linux](https://www.alpinelinux.org/) is a lightweight Linux distribution.
 - We're installing some additional dependencies that Strapi needs to build the app.
+- We're setting some environment variables, including the PUBLIC_URL.  Strapi needs this at build time when constructing the admin dashboard.  We read it in from the command line (and default it to `localhost` if nothing it passed) and set it as an environment variable with these lines:
+    ```yaml
+    ARG PUBLIC_URL=http://localhost:1337
+    ENV PUBLIC_URL=${PUBLIC_URL}
+    ```
 - Next, we're copying our `package.json` into the container's filesystem and running `npm install`, followed by copying our project files and running `npm run build`.
   - The order is important here, as is the fact that this is done on two separate lines.  Docker evaluates whether it can use the last cached version of each step (called an image layer) line-by-line.  So if the dependencies don't change between builds, this will let Docker skip re-downloading them.
+
 - Next, we create a new image for our [final stage](https://docs.docker.com/build/building/multi-stage/).  We copy over only what we need from the build stage.  And we install only what we need to *run* the app, not *build* the app, into this final stage.  This keeps our final image smaller.
 - Last, we're exposing port 1337 that Strapi will run on, and we run `npm run start` to start Strapi when the docker container starts.
 
@@ -1127,11 +1135,14 @@ Next, we need a place to store our secrets when we run our container in the clou
   - DATABASE_CLIENT
   - DATABASE_FILENAME
   - JWT_SECRET
+  - PUBLIC_URL (This must be your api's subdomain, e.g. `https://api.jss.computer`)
 - Keep the default encryption.
 
 The database environment variables aren't sensitive, but we'll keep all our environment variables here for simplicity.
 
 ![create secret](assets/create-secret.png)
+
+***TODO*** update picture with public_url
 
 - Click Next.
 - Add a name and description for your secret.
@@ -1205,6 +1216,8 @@ Expand the environment variables dropdown.
   - The two colons at the end are required!  They just mean that we don't want to specify versioning information and that we want the default, [current version](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/secrets-envvar-secrets-manager.html) of the secret.
 
 ![container environment variables](assets/container-env-vars.png)
+
+***TODO*** new image with PUBLIC_URL
 
 Click create!
 
@@ -1501,7 +1514,7 @@ Why do we need to pass roles to our ECS Service and Task?  AWS often requires yo
 
 We're going to need to commit our task definition JSON into our repo.  It's probably easiest to copy it from the console.
 
-- Go to ECS -> Task Definitions (on the left-hand menu) -> your Task Defition -> JSON tab.
+- Go to ECS -> Task Definitions (on the left-hand menu) -> your Task Definition -> JSON tab.
 - Copy it and save it to your repo at `.aws/task-definition.json`.
 - Commit.
 
@@ -1545,6 +1558,8 @@ env:
   ECS_TASK_DEFINITION: .aws/task-definition.json  # set this to the path to your Amazon ECS task definition file, e.g. .aws/task-definition.json
   CONTAINER_NAME: code-along-api                  # set this to the name of the container in the
                                                   # containerDefinitions section of your task definition
+  PUBLIC_URL: https://api.jss.computer
+
 jobs:
   deploy:
     name: Deploy
@@ -1571,11 +1586,12 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
+          PUBLIC_URL: ${{ env.PUBLIC_URL }}
         run: |
           # Build a docker container and
           # push it to ECR so that it can
           # be deployed to ECS.
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG --build-arg="PUBLIC_URL=$PUBLIC_URL" .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
@@ -2577,6 +2593,7 @@ export const BACKEND_SECRETS: { [key: string]: string } = {
   DATABASE_CLIENT: '',
   DATABASE_FILENAME: '',
   JWT_SECRET: '',
+  PUBLIC_URL: '', // must be the name of your dev api subdomain, e.g. `https://api-dev.jss.computer`
 };
 ```
 Add `backendSecrets.ts` to your `.gitignore` file!
@@ -2956,7 +2973,7 @@ Follow the [steps above](#setup-github-actions-environments) to setup a Producti
 
 Add your AWS credentials to each environment.
 
-For dev, use the stack outputs for the `ECR_REPOSITORY`, `ECS_SERVICE`, `ECS_CLUSTER`, and `CONTAINER_NAME` environment variables.  For prod, copy the hardcoded variables from the GitHub Action.
+For dev, use the stack outputs for the `ECR_REPOSITORY`, `ECS_SERVICE`, `ECS_CLUSTER`, and `CONTAINER_NAME` environment variables.  For prod, copy the hardcoded variables from the GitHub Action.  Add the `PUBLIC_URL` variable for each environment (e.g., https://api.jss.computer and https://api-dev.jss.computer) so we can inject it at build time in the backendPipelineUser.
 
 For prod, rename the task definition to `.aws/task-definition-prod.json`, and set that path as the `ECS_TASK_DEFINITION`.  For dev, it will be `.aws/task-definition-dev.json`.
 
@@ -3035,11 +3052,12 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
+          PUBLIC_URL: ${{ env.PUBLIC_URL }}
         run: |
           # Build a docker container and
           # push it to ECR so that it can
           # be deployed to ECS.
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG  --build-arg="PUBLIC_URL=$PUBLIC_URL" .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
