@@ -14,180 +14,138 @@ This repo contains the Pulumi infrastructure code, and the course materials are 
   - [First Principles](#first-principles)
     - [Principle of Least Privilege](#principle-of-least-privilege)
     - [Tradeoffs and Cost](#tradeoffs-and-cost)
-      - [AWS Free Tier](#aws-free-tier)
   - [Game Plan](#game-plan)
-- [Build the Frontend Locally](#build-the-frontend-locally)
-  - [Why Next.js](#why-nextjs)
-  - [Create Next project](#create-next-project)
-    - [Setup your project and GitHub Repository](#setup-your-project-and-github-repository)
-    - [Create your first route](#create-your-first-route)
-    - [Build a static site for production](#build-a-static-site-for-production)
-- [Setup your AWS account](#setup-your-aws-account)
-  - [A note on AWS Regions](#a-note-on-aws-regions)
-  - [Sign up](#sign-up)
-  - [Setup billing alerts](#setup-billing-alerts)
-  - [Create account alias](#create-account-alias)
-  - [Setup MFA](#setup-mfa)
-  - [Create our Admin user](#create-our-admin-user)
-  - [Login as Admin and add MFA](#login-as-admin-and-add-mfa)
-- [Register a domain](#register-a-domain)
-- [Upload our frontend build directory to s3](#upload-our-frontend-build-directory-to-s3)
-  - [Create a bucket for your site](#create-a-bucket-for-your-site)
-  - [Add a bucket policy allowing access](#add-a-bucket-policy-allowing-access)
-  - [Upload our frontend assets](#upload-our-frontend-assets)
-  - [Enable Static Website Hosting](#enable-static-website-hosting)
-- [Setup the AWS CLI](#setup-the-aws-cli)
-- [Setup Route 53 (DNS)](#setup-route-53-dns)
-- [Setup HTTPS with ACM](#setup-https-with-acm)
-- [Setup CloudFront (CDN)](#setup-cloudfront-cdn)
-  - [Create CloudFront Distribution](#create-cloudfront-distribution)
-    - [Origin and Origin Access Control](#origin-and-origin-access-control)
-    - [Default Cache Behavior and Web Application Firewall](#default-cache-behavior-and-web-application-firewall)
-    - [Settings](#settings)
-  - [Custom Error Response](#custom-error-response)
-  - [Update Bucket Policy](#update-bucket-policy)
-  - [Double-check behavior](#double-check-behavior)
-  - [Seal off your bucket](#seal-off-your-bucket)
-- [Setup routing with Lambda@Edge Function](#setup-routing-with-lambdaedge-function)
-  - [Create Function](#create-function)
-  - [Create Role](#create-role)
-  - [Create Trigger](#create-trigger)
-    - [Origin vs. Viewer Request Triggers](#origin-vs-viewer-request-triggers)
-  - [Test it](#test-it)
-- [Frontend CI/CD pipeline](#frontend-cicd-pipeline)
-  - [Create Pipeline User](#create-pipeline-user)
-    - [Create Policy](#create-policy)
-    - [Create User](#create-user)
-    - [Create Access Key](#create-access-key)
-  - [Update s3 Bucket Policy](#update-s3-bucket-policy)
-  - [Create the GitHub Action](#create-the-github-action)
-    - [Add Secrets to Frontend GitHub Repo](#add-secrets-to-frontend-github-repo)
-    - [Push and Test](#push-and-test)
+- [Deploy the Frontend with the AWS Console](#deploy-the-frontend-with-the-aws-console)
+  - [Build the Frontend Locally](#build-the-frontend-locally)
+    - [Why Next.js](#why-nextjs)
+    - [Create Next project](#create-next-project)
+  - [Setup your AWS account](#setup-your-aws-account)
+    - [A note on AWS Regions](#a-note-on-aws-regions)
+    - [Sign up](#sign-up)
+    - [Setup billing alerts](#setup-billing-alerts)
+    - [Create account alias](#create-account-alias)
+    - [Setup MFA](#setup-mfa)
+    - [Create our Admin user](#create-our-admin-user)
+    - [Login as Admin and add MFA](#login-as-admin-and-add-mfa)
+  - [Register a domain](#register-a-domain)
+  - [Upload our frontend build directory to s3](#upload-our-frontend-build-directory-to-s3)
+    - [Create a bucket for your site](#create-a-bucket-for-your-site)
+    - [Add a bucket policy allowing access](#add-a-bucket-policy-allowing-access)
+    - [Upload our frontend assets](#upload-our-frontend-assets)
+    - [Enable Static Website Hosting](#enable-static-website-hosting)
+  - [Setup the AWS CLI](#setup-the-aws-cli)
+  - [Setup Route 53 (DNS)](#setup-route-53-dns)
+  - [Setup HTTPS with ACM](#setup-https-with-acm)
+  - [Setup CloudFront (CDN)](#setup-cloudfront-cdn)
+    - [Create CloudFront Distribution](#create-cloudfront-distribution)
+    - [Custom Error Response](#custom-error-response)
+    - [Update Bucket Policy](#update-bucket-policy)
+    - [Double-check behavior](#double-check-behavior)
+    - [Seal off your bucket](#seal-off-your-bucket)
+  - [Setup routing with Lambda@Edge Function](#setup-routing-with-lambdaedge-function)
+    - [Create Function](#create-function)
+    - [Create Role](#create-role)
+    - [Create Trigger](#create-trigger)
+    - [Test it](#test-it)
+  - [Frontend CI/CD pipeline](#frontend-cicd-pipeline)
+    - [Create Pipeline User](#create-pipeline-user)
+    - [Update s3 Bucket Policy](#update-s3-bucket-policy)
+    - [Create the GitHub Action](#create-the-github-action)
   - [Summing up the Frontend](#summing-up-the-frontend)
-- [Setup Strapi Locally](#setup-strapi-locally)
-  - [Bootstrap Strapi](#bootstrap-strapi)
-  - [Create GitHub Repo](#create-github-repo)
-  - [Dockerize Strapi](#dockerize-strapi)
-    - [Create Dockerfile](#create-dockerfile)
-    - [Add .dockerignore](#add-dockerignore)
-    - [Test Docker Locally](#test-docker-locally)
-- [Setup Elastic Container Registry (ECR)](#setup-elastic-container-registry-ecr)
-  - [Push your image](#push-your-image)
-- [Setup Secrets Manager](#setup-secrets-manager)
-- [Setup ECS Service and Load Balancer](#setup-ecs-service-and-load-balancer)
-  - [Create a Cluster](#create-a-cluster)
-  - [Create a Task Definition](#create-a-task-definition)
-    - [Intrastructure Requirements](#intrastructure-requirements)
-    - [Container Definition](#container-definition)
-    - [Environment Variables](#environment-variables)
-  - [Allow ECS to Access Secrets](#allow-ecs-to-access-secrets)
-  - [Create an ECS Service](#create-an-ecs-service)
-    - [Environment](#environment)
-    - [Deployment Configuration](#deployment-configuration)
-    - [Networking](#networking)
-      - [VPC](#vpc)
-      - [Subnets and Availability Zones](#subnets-and-availability-zones)
-      - [Security Groups](#security-groups)
-      - [Setup](#setup)
-    - [Load Balancing](#load-balancing)
-  - [Update Healthcheck settings](#update-healthcheck-settings)
-  - [Restrict Public Access to ECS Service](#restrict-public-access-to-ecs-service)
-    - [Create Load Balancer Security Group](#create-load-balancer-security-group)
-      - [IPv4 vs. IPv6](#ipv4-vs-ipv6)
-      - [CIDR Blocks](#cidr-blocks)
-    - [Attach Security Group to Load Balancer](#attach-security-group-to-load-balancer)
-    - [Update ECS Security Group](#update-ecs-security-group)
-- [Setup API DNS](#setup-api-dns)
-- [Setup Backend CI/CD](#setup-backend-cicd)
-  - [Create Backend Pipeline User](#create-backend-pipeline-user)
-    - [Create Policy](#create-policy-1)
-    - [Create User](#create-user-1)
-    - [Create Access Key](#create-access-key-1)
-  - [Commit Task Definition](#commit-task-definition)
-  - [Add GitHub Action](#add-github-action)
-  - [Add Backend Secrets to GitHub](#add-backend-secrets-to-github)
-  - [Test](#test)
-- [Call API from the Frontend](#call-api-from-the-frontend)
-  - [Create Newsfeed component](#create-newsfeed-component)
-  - [Add GitHub Environment Variables](#add-github-environment-variables)
-  - [Test](#test-1)
-- [Wrapping up Deploying Through the AWS Console](#wrapping-up-deploying-through-the-aws-console)
+- [Deploy the Backend with the AWS Console](#deploy-the-backend-with-the-aws-console)
+  - [Setup Strapi Locally](#setup-strapi-locally)
+    - [Bootstrap Strapi](#bootstrap-strapi)
+    - [Create GitHub Repo](#create-github-repo)
+    - [Dockerize Strapi](#dockerize-strapi)
+  - [Setup Elastic Container Registry (ECR)](#setup-elastic-container-registry-ecr)
+    - [Push your image](#push-your-image)
+  - [Setup Secrets Manager](#setup-secrets-manager)
+  - [Setup ECS Service and Load Balancer](#setup-ecs-service-and-load-balancer)
+    - [Create a Cluster](#create-a-cluster)
+    - [Create a Task Definition](#create-a-task-definition)
+    - [Allow ECS to Access Secrets](#allow-ecs-to-access-secrets)
+    - [Create an ECS Service](#create-an-ecs-service)
+    - [Update Healthcheck settings](#update-healthcheck-settings)
+    - [Restrict Public Access to ECS Service](#restrict-public-access-to-ecs-service)
+  - [Setup API DNS](#setup-api-dns)
+  - [Setup Backend CI/CD](#setup-backend-cicd)
+    - [Create Backend Pipeline User](#create-backend-pipeline-user)
+    - [Commit Task Definition](#commit-task-definition)
+    - [Add GitHub Action](#add-github-action)
+    - [Add Backend Secrets to GitHub](#add-backend-secrets-to-github)
+    - [Test](#test)
+  - [Call API from the Frontend](#call-api-from-the-frontend)
+    - [Create Newsfeed component](#create-newsfeed-component)
+    - [Add GitHub Environment Variables](#add-github-environment-variables)
+    - [Test](#test-1)
+  - [Wrapping up Deploying Through the AWS Console](#wrapping-up-deploying-through-the-aws-console)
 - [Enter Pulumi](#enter-pulumi)
   - [Infrastructure as Code](#infrastructure-as-code)
   - [Infrastructure as ***Code***](#infrastructure-as-code-1)
   - [Gameplan](#gameplan)
-- [Install Pulumi](#install-pulumi)
-- [Create Infrastructure Repo](#create-infrastructure-repo)
-  - [Create Pulumi account](#create-pulumi-account)
-  - [Follow the Prompts](#follow-the-prompts)
-  - [Git](#git)
-  - [Linting and Formatting](#linting-and-formatting)
-  - [Take a Look at the Code](#take-a-look-at-the-code)
-    - [Asynchronous Outputs and Inputs](#asynchronous-outputs-and-inputs)
-    - [Unwrapping Outputs](#unwrapping-outputs)
-  - [Deploy Hello World Page](#deploy-hello-world-page)
-    - [Stack Outputs](#stack-outputs)
-- [Frontend DNS and SSL](#frontend-dns-and-ssl)
-  - [Pulumi Configuration](#pulumi-configuration)
-  - [Add Domain to CloudFront Distribution](#add-domain-to-cloudfront-distribution)
-  - [Add Route 53 Record for Subdomain](#add-route-53-record-for-subdomain)
-  - [Get Existing SSL Certificate](#get-existing-ssl-certificate)
-    - [Unwrap the Certificate ARN](#unwrap-the-certificate-arn)
-  - [Add SSL Certificate to CloudFront](#add-ssl-certificate-to-cloudfront)
-  - [Add Stack Output for URL and Deploy](#add-stack-output-for-url-and-deploy)
-- [Restrict Public Access to s3](#restrict-public-access-to-s3)
-  - [Public Access Block](#public-access-block)
-  - [Add Bucket Policy](#add-bucket-policy)
-    - [Attach Policy to Bucket](#attach-policy-to-bucket)
-  - [Setup OAC](#setup-oac)
-  - [Deploy](#deploy)
-- [Add Lambda@Edge Routing](#add-lambdaedge-routing)
-  - [Add Handler Function](#add-handler-function)
-  - [Add permissions](#add-permissions)
-  - [Create Lambda](#create-lambda)
-  - [Attach Function to CloudFront](#attach-function-to-cloudfront)
-  - [Deploy and Test](#deploy-and-test)
-- [A Note on Pulumi Refresh](#a-note-on-pulumi-refresh)
+- [Deploy the Frontend with Pulumi](#deploy-the-frontend-with-pulumi)
+  - [Install Pulumi](#install-pulumi)
+  - [Create Infrastructure Repo](#create-infrastructure-repo)
+    - [Create Pulumi account](#create-pulumi-account)
+    - [Follow the Prompts](#follow-the-prompts)
+    - [Git](#git)
+    - [Linting and Formatting](#linting-and-formatting)
+    - [Take a Look at the Code](#take-a-look-at-the-code)
+    - [Deploy Hello World Page](#deploy-hello-world-page)
+  - [Frontend DNS and SSL](#frontend-dns-and-ssl)
+    - [Pulumi Configuration](#pulumi-configuration)
+    - [Add Domain to CloudFront Distribution](#add-domain-to-cloudfront-distribution)
+    - [Add Route 53 Record for Subdomain](#add-route-53-record-for-subdomain)
+    - [Get Existing SSL Certificate](#get-existing-ssl-certificate)
+    - [Add SSL Certificate to CloudFront](#add-ssl-certificate-to-cloudfront)
+    - [Add Stack Output for URL and Deploy](#add-stack-output-for-url-and-deploy)
+  - [Restrict Public Access to s3](#restrict-public-access-to-s3)
+    - [Public Access Block](#public-access-block)
+    - [Add Bucket Policy](#add-bucket-policy)
+    - [Setup OAC](#setup-oac)
+    - [Deploy](#deploy)
+  - [Add Lambda@Edge Routing](#add-lambdaedge-routing)
+    - [Add Handler Function](#add-handler-function)
+    - [Add permissions](#add-permissions)
+    - [Create Lambda](#create-lambda)
+    - [Attach Function to CloudFront](#attach-function-to-cloudfront)
+    - [Deploy and Test](#deploy-and-test)
+  - [A Note on Pulumi Refresh](#a-note-on-pulumi-refresh)
   - [A note on editing resource names](#a-note-on-editing-resource-names)
-- [Dev Frontend CI/CD](#dev-frontend-cicd)
-  - [Delete Bucket Sync](#delete-bucket-sync)
-  - [Create Pipeline User](#create-pipeline-user-1)
-  - [Update Bucket Policy](#update-bucket-policy-1)
-  - [Setup GitHub Actions Environments](#setup-github-actions-environments)
-    - [Setup Production](#setup-production)
-    - [Setup Dev](#setup-dev)
-  - [Extract Reusable Workflow](#extract-reusable-workflow)
-  - [Setup Calling Workflows](#setup-calling-workflows)
-  - [Show Current Environment on Frontend](#show-current-environment-on-frontend)
-  - [Push Your Code and Test](#push-your-code-and-test)
-    - [Update error page](#update-error-page)
-- [Wrapping up Pulumi Frontend Code](#wrapping-up-pulumi-frontend-code)
-- [Pulumi Backend Setup](#pulumi-backend-setup)
-  - [Checkout the Pulumi ECS Starter](#checkout-the-pulumi-ecs-starter)
-  - [Create a Backend Function](#create-a-backend-function)
-  - [Setup ECR Repo](#setup-ecr-repo)
-  - [Push Image to Repo](#push-image-to-repo)
-- [Setup Secrets Manager](#setup-secrets-manager-1)
-  - [Create secrets file](#create-secrets-file)
-  - [Create secrets manager](#create-secrets-manager)
-- [Create ECS Service](#create-ecs-service)
-  - [Create Cluster](#create-cluster)
-  - [Create Task Definition](#create-task-definition)
-    - [Reference latest image](#reference-latest-image)
-    - [Add Task Definition](#add-task-definition)
-    - [Allow Task Execution Role to access Secrets](#allow-task-execution-role-to-access-secrets)
-  - [Create Load Balancer](#create-load-balancer)
-  - [Create ECS Service Security Group](#create-ecs-service-security-group)
-  - [Create ECS Service](#create-ecs-service-1)
-- [Add Backend DNS](#add-backend-dns)
-- [Add Stack Outputs](#add-stack-outputs)
-- [Deploy Dev Backend Infrastructure](#deploy-dev-backend-infrastructure)
-- [Add Dev Backend CI/CD](#add-dev-backend-cicd)
-  - [Create Backend Pipeline User](#create-backend-pipeline-user-1)
-  - [Setup Environments and Add Secrets to GitHub](#setup-environments-and-add-secrets-to-github)
-  - [Setup Reusable Workflow](#setup-reusable-workflow)
-  - [Commit Dev Task Definition](#commit-dev-task-definition)
-  - [Push and Test](#push-and-test-1)
+  - [Dev Frontend CI/CD](#dev-frontend-cicd)
+    - [Delete Bucket Sync](#delete-bucket-sync)
+    - [Create Pipeline User](#create-pipeline-user-1)
+    - [Update Bucket Policy](#update-bucket-policy-1)
+    - [Setup GitHub Actions Environments](#setup-github-actions-environments)
+    - [Extract Reusable Workflow](#extract-reusable-workflow)
+    - [Setup Calling Workflows](#setup-calling-workflows)
+    - [Show Current Environment on Frontend](#show-current-environment-on-frontend)
+    - [Push Your Code and Test](#push-your-code-and-test)
+  - [Wrapping up Pulumi Frontend Code](#wrapping-up-pulumi-frontend-code)
+- [Deploy the Backend with Pulumi](#deploy-the-backend-with-pulumi)
+  - [Pulumi Backend Setup](#pulumi-backend-setup)
+    - [Checkout the Pulumi ECS Starter](#checkout-the-pulumi-ecs-starter)
+    - [Create a Backend Function](#create-a-backend-function)
+    - [Setup ECR Repo](#setup-ecr-repo)
+    - [Push Image to Repo](#push-image-to-repo)
+  - [Setup Secrets Manager](#setup-secrets-manager-1)
+    - [Create secrets file](#create-secrets-file)
+    - [Create secrets manager](#create-secrets-manager)
+  - [Create ECS Service](#create-ecs-service)
+    - [Create Cluster](#create-cluster)
+    - [Create Task Definition](#create-task-definition)
+    - [Create Load Balancer](#create-load-balancer)
+    - [Create ECS Service Security Group](#create-ecs-service-security-group)
+    - [Create ECS Service](#create-ecs-service-1)
+  - [Add Backend DNS](#add-backend-dns)
+  - [Add Stack Outputs](#add-stack-outputs)
+  - [Deploy Dev Backend Infrastructure](#deploy-dev-backend-infrastructure)
+  - [Add Dev Backend CI/CD](#add-dev-backend-cicd)
+    - [Create Backend Pipeline User](#create-backend-pipeline-user-1)
+    - [Setup Environments and Add Secrets to GitHub](#setup-environments-and-add-secrets-to-github)
+    - [Setup Reusable Workflow](#setup-reusable-workflow)
+    - [Commit Dev Task Definition](#commit-dev-task-definition)
+    - [Push and Test](#push-and-test-1)
 - [Tearing Down](#tearing-down)
 - [Conclusion](#conclusion)
   - [Next Steps](#next-steps)
@@ -304,11 +262,13 @@ Here's the game plan:
   - backend
   - Multiple environments in our GitHub repos.
 
-# Build the Frontend Locally
+# Deploy the Frontend with the AWS Console
+
+## Build the Frontend Locally
 
 Let's start with building our frontend so we have something to deploy!
 
-## Why Next.js
+### Why Next.js
 
 We'll be using Next.js to build our frontend, which is a framework built on top of React that provides things like routing and server-side rendering out of the box.  The official React docs [recommend](https://react.dev/learn/start-a-new-react-project) using a framework like Next.js for production applications, and it is becoming broadly adopted by the React community.
 
@@ -329,9 +289,9 @@ To avoid setting up a server for our frontend, we'll primarily statically-render
 
 Check out the excellent [Next docs ](https://nextjs.org/learn/foundations/about-nextjs) for a deeper dive on these concepts.  To go even deeper, Josh Comeau's [The Joy of React](https://www.joyofreact.com/) course also has some excellent Next content.
 
-## Create Next project
+### Create Next project
 
-### Setup your project and GitHub Repository
+#### Setup your project and GitHub Repository
 
 - Run `npx create-next-app@latest` to bootstrap the app.
 - Setup linting and auto-format on save.  Shameless plug for my [lintier](https://github.com/josh-stillman/lintier) npm package, which will do it for you!
@@ -341,7 +301,7 @@ Check out the excellent [Next docs ](https://nextjs.org/learn/foundations/about-
 - Add your first git commit, and create a [new GitHub repo](https://github.com/new).  Follow the instructions to add the git remote and push up.
 
 
-### Create your first route
+#### Create your first route
 
 Next provides file-based routing out of the box.  We create new routes and pages by creating new subdirectories in the Next `/app` directory, containing a file named `page.tsx`.  So if we want to create a new page at `/foo`, we add a this new directory and file: `app/foo/page.tsx`.
 
@@ -358,7 +318,7 @@ We're going to create one additional route, so we can learn how to deploy an app
     <Link href="/foo">go to foo page!</Link>
     ```
 
-### Build a static site for production
+#### Build a static site for production
 
 We need to let Next know that we want to build a static site, rather than host our app on a server.  This limits the functionality we have access to (like SSR, of course), but it allows for easier, more lightweight deployment and hosting.  We'll just be uploading static HTML, CSS, and JS assets to a server, where they can be served quickly and cheaply by a CDN, with little effort on our part.
 
@@ -379,7 +339,7 @@ We need to let Next know that we want to build a static site, rather than host o
     ```
 - Run the production build of your app by adding and running this script in your `package.json`: `"serve-static": "npx serve ./out",`
 
-# Setup your AWS account
+## Setup your AWS account
 
 Now it's time to get our frontend deployed!  To go further in depth on a lot of the following issues, I recommend checking out Steve Kinney's great Frontend Masters course [AWS For Front-End Engineers](https://frontendmasters.com/courses/aws-v2/).
 
@@ -391,7 +351,7 @@ Setting up an AWS account is a bit more complex than you might think. We'll need
 
 We'll only use our root user for things like billing.  Any creation of cloud resources will be done with our Admin user instead.  This is a security best practice and limits the damage that could be done if our Admin credentials were compromised.
 
-## A note on AWS Regions
+### A note on AWS Regions
 
 AWS has many "regions" around the world in which your cloud infrastructure can live (these correspond to groups of physical data centers).  They are designed to be [isolated and independent](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html) from each other for fault tolerance.
 
@@ -399,7 +359,7 @@ There are a few things that *must* be in the us-east-1 Region in North Virgina, 
 
 If for some reason you don't see your resources in the console, make sure the us-east-1 region is selected in the dropdown.
 
-## Sign up
+### Sign up
 
 Sign up will require a personal credit card.  We'll mostly be within the free tier, but not entirely.  The costs we'll incur should be quite low-$12 or so to register a domain, and under $10 for our infrastructure if you tear it down after building it.  It's a worthwhile investment to learn valuable skills!
 
@@ -413,7 +373,7 @@ Sign up will require a personal credit card.  We'll mostly be within the free ti
 - Verify with SMS (try the voice captcha option if you have trouble reading the captcha).
 - Choose the basic plan.
 
-## Setup billing alerts
+### Setup billing alerts
 
 While we can't tell AWS not to do anything that costs money, we can at least set up some notifications to alert us if we go outside of the free tier.
 
@@ -425,18 +385,18 @@ While we can't tell AWS not to do anything that costs money, we can at least set
 - Go to budgets
   - Click create budget, then select the zero spend budget.
 
-## Create account alias
+### Create account alias
 
 - Go to your console dashboard and choose create account alias.  This provides an easy to remember name for your account instead of the autogenerated name.
 
-## Setup MFA
+### Setup MFA
 
 Let's secure our console access with Multi-Factor Authentication(MFA).
 
 - Search for IAM in the text bar.  [IAM](https://aws.amazon.com/iam/) is the AWS service where we create and manager users and their access keys.  We'll be spending a fair amount of time with it.
 - Setup 2FA for your root user.  I used the Google Authenticator app.
 
-## Create our Admin user
+### Create our Admin user
 
 We've got our root user setup, so now let's create an Admin user that we'll use for the rest of the course.  The root user will only be used for billing.
 
@@ -452,14 +412,14 @@ We've got our root user setup, so now let's create an Admin user that we'll use 
 
 - Hit the next button.  No need to add tags, which are mainly used for tracking and classifying resources.  Hit create user.
 
-## Login as Admin and add MFA
+### Login as Admin and add MFA
 
 - Lot out of root and log in as the Admin user we just created.
 - Add MFA for this user (under the Security Credentials tab).  Choose a different phone name (you can use the same phone number and just append -admin to the name).
 
 With that, our account is set up and we can start building our infrastructure!
 
-# Register a domain
+## Register a domain
 
 Let's start by registering a domain, so that it has time to propagate by the time we need it.
 
@@ -469,13 +429,13 @@ Go to [Route 53](https://us-east-1.console.aws.amazon.com/route53/v2/home#Dashbo
 - I went with `jss.computer`, one of few sites with my initials available.
 - Make sure privacy protection is on (the default) or your info will be public.
 
-# Upload our frontend build directory to s3
+## Upload our frontend build directory to s3
 
 AWS [s3](https://aws.amazon.com/s3/) is the basic service used for storing files.  We can use a s3 "bucket" to store our frontend assets and serve them up to the world.  The [free tier](https://aws.amazon.com/free) provides 5 gigs of storage.
 
 s3 is a key/value store for names (file names) and "objects" (aka files).  They're stored in a flat hierarchy, though you can add directory paths to your file names if you want.
 
-## Create a bucket for your site
+### Create a bucket for your site
 
 - Click create bucket.
 - Use your website's name for the bucket name.
@@ -485,7 +445,7 @@ s3 is a key/value store for names (file names) and "objects" (aka files).  They'
 
 ![create bucket](assets/create-bucket.png)
 
-## Add a bucket policy allowing access
+### Add a bucket policy allowing access
 
 Next, we need to setup a policy allowing access to our bucket.  Policies in AWS specify *who* can take an action (the principal), *what* actions they can perform, and *to which* resources.  Resources are often referred to by their ARN ([Amazon Resource Name](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html)), which are unique identifiers for cloud resources in AWS.  We'll be working with Policies and ARNs a lot.
 
@@ -518,7 +478,7 @@ Next, we need to setup a policy allowing access to our bucket.  Policies in AWS 
 
 - Copy this policy and paste it in to the bucket policy field.
 
-## Upload our frontend assets
+### Upload our frontend assets
 
 - Go to the Objects tab and click upload.
 - Click add files, and upload everything from the `/out` directory.
@@ -526,7 +486,7 @@ Next, we need to setup a policy allowing access to our bucket.  Policies in AWS 
 - Click add folder and upload the `/_next` subdirectory folder in `/out`.
 - After uploading, click on the `index.html` object, then click the Object URL link (something like `https://s3.amazonaws.com/jss.computer/index.html`).  We're officially on the Internet! 🎉
 
-## Enable Static Website Hosting
+### Enable Static Website Hosting
 
 - We'll setup s3 to host our website directly at first.  In the bucket properties tab, scroll down to the bottom and edit the Static website hosting property.
 - Click enable.
@@ -540,7 +500,7 @@ Kick the tires a bit here.  You'll see that linking between our pages works.  Bu
 
 Cool!  We've got a website up, but there are a lot of improvements left.  We're on http instead of https, and our browser says our site isn't secure.  The url is pretty gross.  The files are only hosted in one AWS region rather than globally.  And we had to manually upload the files.  Let's fix all that stuff!
 
-# Setup the AWS CLI
+## Setup the AWS CLI
 
 Let's take a minute to set up the AWS CLI.  It's useful for all kinds of things, like listing the resources in our account.  And we'll need to have the AWS CLI configured locally so Pulumi can manage our infrastructure for us later in the course.
 
@@ -553,7 +513,7 @@ Let's take a minute to set up the AWS CLI.  It's useful for all kinds of things,
   - Select JSON for output.
 - Give it a try!  Run this command with your bucket name to list the files in it. `aws s3 ls s3://jss.computer`.
 
-# Setup Route 53 (DNS)
+## Setup Route 53 (DNS)
 
 Let's point our domain name to our s3 bucket.
 
@@ -568,7 +528,7 @@ Let's point our domain name to our s3 bucket.
 
 - Go to your domain (on HTTP) and test it out!  (You may need to wait a little bit for the changes to propagate).
 
-# Setup HTTPS with ACM
+## Setup HTTPS with ACM
 
 Now, let's serve our site securely with HTTPS.  For that, we'll need a TLS certificate that authenticates our site.  We can provision one in the [Amazon Certificate Manager (ACM)](https://us-east-1.console.aws.amazon.com/acm/home?region=us-east-1#/welcome).  For more on HTTPS and how it works, see [these](https://www.cloudflare.com/learning/ssl/what-is-https/) [resources](https://www.keyfactor.com/blog/what-is-tls-handshake-how-does-it-work/).
 
@@ -585,7 +545,7 @@ Now, let's serve our site securely with HTTPS.  For that, we'll need a TLS certi
 
 HTTPS won't work with our s3 bucket just yet.  We'll have to setup CloudFront first.
 
-# Setup CloudFront (CDN)
+## Setup CloudFront (CDN)
 
 [CloudFront](https://aws.amazon.com/cloudfront/) is a Content Delivery Network (CDN) that globally distributes our site for faster loads world-wide.  Right now our files are *only* hosted in Virginia.  If someone from Australia goes to our site, they are going to have a much longer load time than someone on the East Coast.
 
@@ -595,12 +555,12 @@ We can solve this problem with a CDN, which will put copies of our files on many
 
 We'll create a CloudFront "distribution" to distribute our site.  Later, when we setup our CI/CD pipeline, we'll setup CloudFront "invalidations," which tell the edge servers to fetch the new assets from the "origin" server in Virgina (our s3 bucket) on the next request.
 
-## Create CloudFront Distribution
+### Create CloudFront Distribution
 
 - Go to CloudFront
 - Click Create Distribution
 
-### Origin and Origin Access Control
+#### Origin and Origin Access Control
 
 - Choose your s3 Bucket under Origin Domain.  It will recommend that you use the bucket's website endpoint, but don't click the button.  This will allow us to secure the origin later and only allow access through CloudFront.
 - Under Origin Access, select Origin Access Control (OAC), then click the Create control setting button.
@@ -611,14 +571,14 @@ To use the OAC, we'll have to update our bucket policy after creating our distri
 
 ![Origin settings](assets/cloudfront-distribution-origin.png)
 
-### Default Cache Behavior and Web Application Firewall
+#### Default Cache Behavior and Web Application Firewall
 
 - Keep all the defaults *except* choose "Redirect HTTP to HTTPS" so our site is only available on HTTPS.
 - Don't enable the WAF (it costs $).
 
 ![Cache Behavior](assets/cloudfront-cache-behavior.png)
 
-### Settings
+#### Settings
 
 - Under alternate domain names, enter both your domain and your domain with the www prefix: `jss.computer` and `www.jss.computer`.
 - Select your SSL certificate from the drop-down.  If you don't see it, you may have created it in the wrong region!
@@ -627,7 +587,7 @@ To use the OAC, we'll have to update our bucket policy after creating our distri
 
 ![Settings](assets/cloudfront-settings.png)
 
-## Custom Error Response
+### Custom Error Response
 
 We need to tell CloudFront how to handle errors.  Go to your distribution, click the Error Pages tab, then Create custom error response.
 
@@ -638,7 +598,7 @@ We need to tell CloudFront how to handle errors.  Go to your distribution, click
 
 ![404 page](assets/cloudfront-404.png)
 
-## Update Bucket Policy
+### Update Bucket Policy
 
 Go back to your s3 bucket and then to the Permissions tab.  Under Bucket Policy, click Edit.
 
@@ -680,7 +640,7 @@ Some things to note here:
 - The principal is CloudFront.
 - We can limit *which* CloudFront distribution has access with the condition block where we specify the distribution's ARN.  Copy it from your distribution's console page.
 
-## Double-check behavior
+### Double-check behavior
 
 Go to your domain (such as https://jss.computer).
 
@@ -691,7 +651,7 @@ Go to your domain (such as https://jss.computer).
 - Try clicking the link from the root page to go to `/foo` and it should work (this is Next's [client-side routing](https://nextjs.org/docs/pages/building-your-application/routing/linking-and-navigating)).
 - Try reloading the page at `/foo` (this is server routing with CloudFront) and you should instead see the 404.  Don't panic, we'll fix it!
 
-## Seal off your bucket
+### Seal off your bucket
 
 The bucket still allows direct public access.  We want to seal it off and require traffic to go through our CloudFront distribution (principle of least privilege!).
 
@@ -701,7 +661,7 @@ The bucket still allows direct public access.  We want to seal it off and requir
 
 Major progress!
 
-# Setup routing with Lambda@Edge Function
+## Setup routing with Lambda@Edge Function
 
 Let's fix the issue where reloading the page at `/foo` give us a 404.
 
@@ -711,7 +671,7 @@ Why is it happening? If you go to https://jss.computer/foo, CloudFront is lookin
 
 To fix this our routing problem, we'll create a Lambda@Edge function that will intercept each CloudFront request.  If the request is for a path *without* a file extension, we'll append `.html` at the end when sending the request on to our s3 bucket.  This allows us to correctly serve up these files while keeping the routes the user sees in their browser looking clean ([other solutions](https://stackoverflow.com/questions/63591544/next-js-how-to-make-links-work-with-exported-sites-when-hosted-on-aws-cloudfron) to this problem weren't as nice looking).
 
-## Create Function
+### Create Function
 
 First we need to create a function.
 
@@ -754,7 +714,7 @@ Most of the heavy lifting here is done by the regex, `/\/[^/.]+$/`.  What it's d
 - By doing this, we *exclude* requests for the root both with and without a trailing slash (https://jss.computer and https://jss.computer/), since CloudFront already knows to serve index.html as the root object.  And we exclude requests for files with extensions, like `/foo.svg`.  We also correctly handle nested routes like `/foo/bar`.
 - **TODO**: a final trailing slash won't work here!  Need to update to `/\/[^/.]+\/?$/`
 
-## Create Role
+### Create Role
 
 We need to let CloudFront execute this function by letting it assume the Lambda's role.  Go to IAM, then Roles, then find the Role for your function.  It should have the same name as the function you created with some extra text (something like add-html-extension-role-dnrn2cz1).
 
@@ -779,7 +739,7 @@ We need to let CloudFront execute this function by letting it assume the Lambda'
 }
 ```
 
-## Create Trigger
+### Create Trigger
 
 Now let's deploy the function to the edge.  On your function page, click the Add Trigger button.
 
@@ -789,25 +749,25 @@ Now let's deploy the function to the edge.  On your function page, click the Add
 
 ![deploy to lambda@edge](assets/deploy-to-lambda-edge.png)
 
-### Origin vs. Viewer Request Triggers
+#### Origin vs. Viewer Request Triggers
 
 Viewer requests are executed for every request around the world.  They're good for things like [localization](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-how-to-choose-event.html) (e.g., adding a language abbreviation to the url).  Origin requests are executed only once for all requests to a particular path, and are good for use cases where we want to affect all requests around the world.
 
 Here, we want an origin request.  We want all requests globally for a given url to be rewritten to access the correct HTML file.
 
-## Test it
+### Test it
 
 Cloudfront can take some time to deploy, which makes sense.  Give it a little time, then try refreshing at `/foo` and it should work!
 
-# Frontend CI/CD pipeline
+## Frontend CI/CD pipeline
 
 Next, let's stop uploading files directly from our computer!  We can setup a CI/CD pipeline in our GitHub repository using GitHub Actions.  When new code is pushed to our `main` branch, it will trigger the pipeline, which will build our code, upload the build to our s3 bucket, and create a CloudFront invalidation telling CloudFront to fetch the new version from the bucket on the next user request.
 
-## Create Pipeline User
+### Create Pipeline User
 
 The pipeline will need an AWS access key to use the AWS CLI to upload files to s3 and create the CloudFront invalidations.  We could use our Admin account, sure, but that would be super insecure.  What if someone gets access to our GitHub repo (which stores the keys)?  They'd have our Admin keys and could do almost *anything* 🙀.  Instead, we'll create a new user for the pipeline, and this user will only have the minimum permissions needed to accomplish the job.
 
-### Create Policy
+#### Create Policy
 
 - Go to IAM.
 - Create Policy.  We'll attach this policy to our pipeline user.
@@ -843,20 +803,20 @@ We also need the user to be able to create invalidations on our CloudFront distr
 
 We scope these permissions to the specific bucket and distribution for our environment.
 
-### Create User
+#### Create User
 
 - Create a new user in IAM.
 - Don't grant console access.
 - Attach the policy you just created to the user.
 
-### Create Access Key
+#### Create Access Key
 
 - Go to your user, then the Security Credentials tab.
 - Under Access Keys, hit the Create Access Key button.
 - Bypass the warnings.
 - Copy down the credentials and store them somewhere safe and secure.  You can only view them once!  We'll add these to GitHub in a minute.
 
-## Update s3 Bucket Policy
+### Update s3 Bucket Policy
 
 AWS's [permissions evaluation model](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html) can be complex when multiple policies are in play, such as is the case here with an IAM user policy and an s3 bucket policy.  Generally one "Allow" would be enough to grant access in either an IAM or resource policy.  But here, we've configured a [public access block](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-control-block-public-access.html) on our bucket.  If we tried to upload to the bucket with our user, we'll get an error saying the bucket policy forbids it.  So, belt-and-suspenders style, we'll add permissions to our bucket policy that will allow our pipeline to work.
 
@@ -883,7 +843,7 @@ AWS's [permissions evaluation model](https://docs.aws.amazon.com/IAM/latest/User
 }
 ```
 
-## Create the GitHub Action
+### Create the GitHub Action
 
 In your frontend repo, create a new `.github` directory, with a `/workflows` subdirectory.  In `./github/workflows`, add a file called `build-deploy.yml`.
 
@@ -957,7 +917,7 @@ Here's what this workflow is doing:
 
 Commit this file.  But before pushing it up, we need to add our secrets to our GitHub repo.
 
-### Add Secrets to Frontend GitHub Repo
+#### Add Secrets to Frontend GitHub Repo
 
 - In your GitHub repo, go to Settings -> Security -> Secrets and variables -> Actions
 - We need to add 4 variables:
@@ -965,7 +925,7 @@ Commit this file.  But before pushing it up, we need to add our secrets to our G
   - `BUCKET_NAME`.  You can get it from the console, or the CLI with `aws s3 ls`.  It should look like `jss.computer` (not an ARN).
   - `DISTRIBUTION_ID`.  You can get it from the console, or the CLI with `aws cloudfront list-distributions`.  It should look like `E2NYXH5S9T80Y5` (also not an ARN).
 
-### Push and Test
+#### Push and Test
 
 Make a change to your app so we can verify that our pipeline is working.
 
@@ -977,7 +937,9 @@ Make a change to your app so we can verify that our pipeline is working.
 
 We've got a fully functional frontend environment now, complete with a working CI/CD pipeline!  Next up, let's extend our application with some backend functionality.
 
-# Setup Strapi Locally
+# Deploy the Backend with the AWS Console
+
+## Setup Strapi Locally
 
 To keep our backend simple we're going to use [Strapi](https://strapi.io/), a headless CMS.  Out of the box, Strapi will let us set up an admin user, log into an admin dashboard, add items to a collection, and serve those items as JSON via an API endpoint.  In production, Strapi would be a good choice when you need to let non-technical users edit frequently changing information.
 
@@ -985,7 +947,7 @@ We'll use Strapi to create a news feed.  Each item will just have a headline and
 
 We can follow the Strapi [quickstart guide](https://docs.strapi.io/dev-docs/quick-start#_1-install-strapi-and-create-a-new-project).
 
-## Bootstrap Strapi
+### Bootstrap Strapi
 
 - Run `npx create-strapi-app@latest my-api --quickstart --typescript`
   - This creates a Strapi project with a sqlite database saved to the `/tmp/data.db` file.
@@ -999,11 +961,11 @@ We can follow the Strapi [quickstart guide](https://docs.strapi.io/dev-docs/quic
   - Select `find` and `findOne`, and save.
 - Test it out!  run `curl http://localhost:1337/api/news-items`, and you should see your news item!
 
-## Create GitHub Repo
+### Create GitHub Repo
 
 Follow the [steps above](#create-github-repo) to create a GitHub repo for your Strapi backend.  Commit and push!
 
-## Dockerize Strapi
+### Dockerize Strapi
 
 For deployment, we'll containerize Strapi with [Docker](https://www.docker.com/).  Docker is an industry-standard way to package our applications.  It allows us to create "containers" which hold not only our application code, but also let us specify the operating system and any additional system dependencies (like Node) our application needs.  Then, our application can dependably be run on any machine that can run Docker, regardless of any other differences between machines.  It solves the "but it works on my machine!" problem for us!  And it allows us to quickly spin up multiple instances of our application for easy scalability.
 
@@ -1013,7 +975,7 @@ Docker is a deep subject.  For more, take a look at the [docs](https://docs.dock
 
 If you haven't already, [install](https://docs.docker.com/desktop/install/mac-install/) and start Docker.
 
-### Create Dockerfile
+#### Create Dockerfile
 
 Add a file called `Dockerfile` in your Strapi root dir (no file extension).  We can mostly copy it from the [official sample](https://docs.strapi.io/dev-docs/installation/docker#production-dockerfile).  One important difference is the `FROM --platform=linux/amd64`, which you will need if you are on an M1/M2 Macbook.
 
@@ -1065,7 +1027,7 @@ At a high level, what's happening here is:
 - Next, we create a new image for our [final stage](https://docs.docker.com/build/building/multi-stage/).  We copy over only what we need from the build stage.  And we install only what we need to *run* the app, not *build* the app, into this final stage.  This keeps our final image smaller.
 - Last, we're exposing port 1337 that Strapi will run on, and we run `npm run start` to start Strapi when the docker container starts.
 
-### Add .dockerignore
+#### Add .dockerignore
 
 We need to make sure not everything is copied into our image when this line is executed: `COPY . .`.  We don't want to copy over our node modules, which aren't compatible with Linux, as well as other unnecessary files.
 
@@ -1085,7 +1047,7 @@ data/
 
 Note that we're commenting out the line ignoring our .tmp directory holding our db file.  This will copy over our local db into our docker container for now.
 
-### Test Docker Locally
+#### Test Docker Locally
 
 - Run `docker build -t strapi-test .`  This builds your docker image.
 - Run `docker images ls` to verify your strapi-test image was built.
@@ -1095,7 +1057,7 @@ Note that we're commenting out the line ignoring our .tmp directory holding our 
 
 If you run into trouble logging into the admin dashboard, the latest Strapi version might be broken.  4.12.6 doesn’t work in production, so use 4.12.1 instead.
 
-# Setup Elastic Container Registry (ECR)
+## Setup Elastic Container Registry (ECR)
 
 Now we need to upload our Strapi Docker image to AWS.  Images are stored in the [Elastic Container Registry](https://aws.amazon.com/ecr/) (ECR) service, and then other AWS services can access them and run containers from them.
 
@@ -1116,7 +1078,7 @@ Let's cap the number of images in our repo at 1 for now so we don't run up a bil
 
 ![Lifecycle policy](assets/ecr-lifecycle-policy.png)
 
-## Push your image
+### Push your image
 
 Click the View push commands button on your repo's page to show instructions for pushing up your first image.
 
@@ -1126,7 +1088,7 @@ Click the View push commands button on your repo's page to show instructions for
 - Push the image to ECR with `docker push <your repo id>.dkr.ecr.us-east-1.amazonaws.com/strapi-test:latest`
 - Verify you see the image in your repository.
 
-# Setup Secrets Manager
+## Setup Secrets Manager
 
 Next, we need a place to store our secrets when we run our container in the cloud.  Locally they're stored in `.env`, but we exclude that file in our docker ignore for security purposes.
 
@@ -1157,7 +1119,7 @@ The database environment variables aren't sensitive, but we'll keep all our envi
 - Keep all default on the secrets rotation page (don't enable it), and click Next.
 - On the review page, click Store.
 
-# Setup ECS Service and Load Balancer
+## Setup ECS Service and Load Balancer
 
 We'll run our Docker container with [Elastic Container Service](https://aws.amazon.com/ecs/) (ECS).  ECS is the principal way containers are run on AWS.
 
@@ -1175,7 +1137,7 @@ We're mainly using the ALB here for networking purposes, but it can do much more
 
 While the ECS Service can be stopped without deleting it, you'd have to delete the ALB to prevent being charged.
 
-## Create a Cluster
+### Create a Cluster
 
 - Go to ECS and click Create cluster.
 - Add a name, and keep the defaults, including Fargate.
@@ -1183,12 +1145,12 @@ While the ECS Service can be stopped without deleting it, you'd have to delete t
 
 ![create cluster](assets/create-cluster.png)
 
-## Create a Task Definition
+### Create a Task Definition
 
 - On the ECS side bar, click Task Definitions, then the Create new task definition button, and choose the non-JSON option.
 - Add a family name, like strapi-task-def.
 
-### Intrastructure Requirements
+#### Intrastructure Requirements
 
 - Under Infrastructure Requirements, keep Fargate.
   - Scale down the resources to the minimum, .25 vCPU and .5 GB Memory.  This is [lower](https://docs.strapi.io/dev-docs/deployment) than what the Strapi docs call for, but seems to work for our limited usage.  You could always scale it up later.
@@ -1199,7 +1161,7 @@ While the ECS Service can be stopped without deleting it, you'd have to delete t
 
 What are these roles?  The [Task Execution Role](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_execution_IAM_role.html) is the role assumed by the ECS Service in starting the container.  It needs permissions to do things like access ECR to get your image and access Secrets Manager to get your environment variables.  The [Task Role](https://towardsthecloud.com/amazon-ecs-task-role-vs-execution-role), on the other hand, is the role assumed by the running task, and is used for things like uploading files to s3 buckets or accessing other AWS services.
 
-### Container Definition
+#### Container Definition
 
 - In the container definition section, add a name for your container.
 - Use the URI of the image you uploaded, which you can find in ECR.  It should look like `<your repo id>.dkr.ecr.us-east-1.amazonaws.com/strapi-test:latest`.
@@ -1211,7 +1173,7 @@ What are these roles?  The [Task Execution Role](https://docs.aws.amazon.com/Ama
 
 ***TODO*** new image without 80.
 
-### Environment Variables
+#### Environment Variables
 
 Expand the environment variables dropdown.
 
@@ -1228,7 +1190,7 @@ Expand the environment variables dropdown.
 
 Click create!
 
-## Allow ECS to Access Secrets
+### Allow ECS to Access Secrets
 
 Now we need to allow the Task Execution Role, which starts our tasks, to access Secrets Manager.
 
@@ -1253,19 +1215,19 @@ Now we need to allow the Task Execution Role, which starts our tasks, to access 
 
 ```
 
-## Create an ECS Service
+### Create an ECS Service
 
 We've got our Cluster to run our Service on, we've got a Task Definition that instructs our Service how to start our Task, and we've got our secrets set up.  Now we can create the Service itself.
 
 - Go to your cluster, and under services, click Create.
 
-### Environment
+#### Environment
 
 - In the Environment section keep all the defaults.
 
 ![ecs service environment](assets/ecs-service-environment.png)
 
-### Deployment Configuration
+#### Deployment Configuration
 
 - In the Deployment Configuration section, select the Task Definition you created from the dropdown, and choose the latest revision.
 - Add a service name.
@@ -1274,11 +1236,11 @@ We've got our Cluster to run our Service on, we've got a Task Definition that in
 
 ![ecs deployment configuration](assets/ecs-service-deployment.png)
 
-### Networking
+#### Networking
 
 In this section, we setup networking rules for our service.  There are a number of new concepts in this section.
 
-#### VPC
+##### VPC
 
 VPC stands for "[Virtual Private Cloud](https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html)," which is an isolated set of cloud resources in a virtual network.  Every AWS account comes with a default VPC, which we'll use here.  You can setup additional VPCs if you need [additional isolation](https://stackoverflow.com/questions/66115482/when-should-i-create-different-vpcs-and-not-just-different-subnets) (something you might do for multiple environments in a production application, for example).  Think of them as a private network for your AWS resources.
 
@@ -1286,7 +1248,7 @@ Most of the frontend resources we created are not *in* your VPC, which makes sen
 
 In contrast, our server-side code and associated resources are within our VPC (ECS Service and ALB).  This gives us control over networking and how and whether to expose them to incoming traffic.
 
-#### Subnets and Availability Zones
+##### Subnets and Availability Zones
 
 Within each AWS Region, there are sub-regions called [availability zones](https://docs.aws.amazon.com/whitepapers/latest/get-started-documentdb/aws-regions-and-availability-zones.html), which are geographic groupings of physical data centers.
 
@@ -1300,13 +1262,13 @@ Here's an example diagram from the [AWS docs on VPCs and Subnets](https://docs.a
 
 ![subnets example diagram](assets/subnets.png)
 
-#### Security Groups
+##### Security Groups
 
 [Security Groups](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-security-groups.html) function like network firewalls for resources in your VPC.  They permit or deny network traffic from certain sources to resources in the group on certain ports.  Here, for instance, we want to allow incoming traffic on port 1337 to our Strapi app, and block all other ports.  For the permitted traffic source, we can specify specific IPs, IP ranges, or other Security Groups.
 
 The ability to link together two Security Groups will allow us to require incoming traffic to flow through our load balancer.  The ECS Service's Security group will permit incoming traffic on port 1337 only from the load balancer's Security Group.
 
-#### Setup
+##### Setup
 
 Now that we have a better understanding of these AWS networking concepts, let's setup networking for our ECS Service.
 
@@ -1319,7 +1281,7 @@ Now that we have a better understanding of these AWS networking concepts, let's 
 
 ![ecs service networking](assets/ecs-service-networking.png)
 
-### Load Balancing
+#### Load Balancing
 
 Expand the Load balancing section and add a load balancer, which we'll use for routing.
 
@@ -1340,7 +1302,7 @@ A "[Target Group](https://docs.aws.amazon.com/elasticloadbalancing/latest/applic
 
 Load balancers perform health checks on the target group, regularly pinging the designated endpoint to ensure the target is still up.  If the healthcheck is misconfigured, it will lead to the Load Balancer repeatedly stopping and restarting your ECS service.
 
-## Update Healthcheck settings
+### Update Healthcheck settings
 
 We need to update our healthcheck settings because the ALB is expecting a code 200 response, but Strapi sends an empty [204](https://www.webfx.com/web-development/glossary/http-status-codes/what-is-a-204-status-code/#:~:text=A%20204%20status%20code%20is%20used%20when%20the%20server%20successfully,such%20as%20a%20DELETE%20request.) response instead
 
@@ -1353,11 +1315,11 @@ We need to update our healthcheck settings because the ALB is expecting a code 2
 
 ![health check codes](assets/health-check-codes.png)
 
-## Restrict Public Access to ECS Service
+### Restrict Public Access to ECS Service
 
 Next, let's require traffic to flow through the Load Balancer.
 
-### Create Load Balancer Security Group
+#### Create Load Balancer Security Group
 
 - Still in EC2, select Security Groups on the left-hand side, and click the Create Security Group button.
 - Create an inbound rule allowing HTTPS traffic from a source of Anywhere-IPv4.
@@ -1369,21 +1331,21 @@ Next, let's require traffic to flow through the Load Balancer.
 
 There are a couple new concepts in this section as well:
 
-#### IPv4 vs. IPv6
+##### IPv4 vs. IPv6
 
 [IPv4](https://levelup.gitconnected.com/how-to-tell-if-you-are-on-ipv4-or-ipv6-1f33d8a1bf06) is the older version of the IP protocol created in the 1980s, which most of the Internet still uses.  IPv6 is newer and was created to allow for many more IP numbers as the Internet grows. About [55% of Internet traffic](https://www.google.com/intl/en/ipv6/statistics.html) to Google was still on IPv4 as of late 2023. IPv6 isn't backwards compatible, so you need separate inbound rules for each protocol.
 
-#### CIDR Blocks
+##### CIDR Blocks
 
 [CIDR (Classless Inter-Domain Routing) Block notation](https://aws.amazon.com/what-is/cidr/) is used in AWS security groups for [matching IP address ranges](https://community.canvaslms.com/t5/Canvas-Resource-Documents/IP-Filtering-in-Canvas/ta-p/387089).  When you select a source of Anywhere-IPv4, AWS adds the IPv4 CIDR block for all IP addresses: `0.0.0.0/0`.  When you select a source of Anywhere-IPv6, AWS adds the IPv6 CIDR block for all IP addresses: `::/0`.  So here, we're matching all IP addresses for our inbound rules.
 
-### Attach Security Group to Load Balancer
+#### Attach Security Group to Load Balancer
 
 - Next, still within EC2, go to Load Balancers, and select you Load Balancer.
 - Go to the Security Tab, and Click Edit.
 - Attach the Security Group you just created to the Load Balancer.
 
-### Update ECS Security Group
+#### Update ECS Security Group
 
 - Go back to Security Groups in EC2.
 - Now, you should see 3 groups: the default VPC group, the Load Balancer's Security Group we just created, and the ECS Service's Security Group.
@@ -1395,7 +1357,7 @@ There are a couple new concepts in this section as well:
 
 - Verify that you can't reach Strapi directly on its public IP.  Go to ECS -> your Cluster -> your Service -> Tasks tab -> your Task -> Public IP -> Go to that IP in your browser on port 1337.
 
-# Setup API DNS
+## Setup API DNS
 
 Now let's serve our Strapi app from a subdomain, like `api.jss.computer`.
 
@@ -1417,7 +1379,7 @@ Try curling your service at the subdomain `curl https://api.jss.computer/api/new
 
 Our backend is deployed! 🎉
 
-# Setup Backend CI/CD
+## Setup Backend CI/CD
 
 Now let's set up our backend CI/CD Pipeline.  We'll need to create a pipeline user with all of the necessary permissions.  Then we'll need to setup our GitHub Action.
 
@@ -1435,13 +1397,13 @@ Update the .gitignore file:
 # .tmp
 ```
 
-## Create Backend Pipeline User
+### Create Backend Pipeline User
 
 The backend pipeline user [needs permissions](https://github.com/aws-actions/amazon-ecs-deploy-task-definition/tree/df9643053eda01f169e64a0e60233aacca83799a/#permissions) to push a new Docker image to ECR, update our Task Definition to reference the new image URI we uploaded to ECR, update the ECS Service to use the new revision of the Task Definition, and pass the roles that the updated Service and Task will use to them.
 
 Why do we need to pass roles to our ECS Service and Task?  AWS often requires you to [pass the role(s)](https://serverfault.com/questions/945596/why-does-aws-lambda-need-to-pass-ecstaskexecutionrole-to-ecs-task) that a resource will use when setting it up and configuring it.  "This [allows](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_passrole.html) the service to assume the role later."  So, any roles listed in the Task Definition must be passed, and the pipeline user must have permission to do so.
 
-### Create Policy
+#### Create Policy
 
 - Go to IAM, then Policies, then Create policy.
 - Add the following JSON, and replace the ECR Repo ARN, ECS Service ARN,  and ECS Task Execution Role ARN:
@@ -1501,7 +1463,7 @@ Why do we need to pass roles to our ECS Service and Task?  AWS often requires yo
 
 **TODO** Narrow the permissions.
 
-### Create User
+#### Create User
 
 - In IAM, go to Users, and click Create User.
 - Add a name, and don't provide access to the console.
@@ -1510,14 +1472,14 @@ Why do we need to pass roles to our ECS Service and Task?  AWS often requires yo
 - Find the policy name you just created, and click the checkbox to attach it to the user.
 - On the review page, click Create user.
 
-### Create Access Key
+#### Create Access Key
 
 - Find your user, and go to the Security Credentials tab.
 - Under Access Keys, hit the Create Access Key button.
 - Bypass the warnings.
 - Copy down the credentials and store them somewhere safe and secure.  Remember, you can only view them once!  We'll add these to GitHub in a minute.
 
-## Commit Task Definition
+### Commit Task Definition
 
 We're going to need to commit our task definition JSON into our repo.  It's probably easiest to copy it from the console.
 
@@ -1537,7 +1499,7 @@ Take a look at the Task Definition.  You'll see one reason why using Secrets Man
 ]
 ```
 
-## Add GitHub Action
+### Add GitHub Action
 
 We can build off of the the Deploy to ECS [starter workflow](https://github.com/actions/starter-workflows/blob/main/deployments/aws.yml).
 
@@ -1637,23 +1599,23 @@ You'll need to edit the `env:` block in the action with the following:
 
 You can keep the ECS_TASK_DEFINITION variable as `.aws/task-definition.json`, which we added previously.
 
-## Add Backend Secrets to GitHub
+### Add Backend Secrets to GitHub
 
 - In your GitHub repo, go to Settings -> Security -> Secrets and variables -> Actions
 - Add the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` for the backend pipeline user, which you copied and saved earlier.
 
-## Test
+### Test
 
 - To test your deployment, you can start Strapi locally and add a newsfeed item, and then commit the change to the local database.
 - Push up and verify that the action runs.
 - Verify in the ECS console that your Service deployment completes.
 - Test with curl again to verify the new newsfeed item is returned.
 
-# Call API from the Frontend
+## Call API from the Frontend
 
 We're finally in a position to hook up our frontend and backend!
 
-## Create Newsfeed component
+### Create Newsfeed component
 
 We're going to create a [client component](https://nextjs.org/docs/app/building-your-application/rendering/client-components) to render our newsfeed.  Client Components only render on the client at run time, as opposed to Next's typical strategy of rendering static content at build or request time on the server.  This allows us to pull news feed items in real time.  Because we are generating a static build with Next rather than setting up a server, this is our only option to pull data in real time on every page load.
 
@@ -1751,7 +1713,7 @@ Start your frontend and backend locally, and verify that the news feed works.
 
 See this [pull request](https://github.com/josh-stillman/devops-for-typescript-devs-frontend/pull/1/files) for more.
 
-## Add GitHub Environment Variables
+### Add GitHub Environment Variables
 
 In your frontend GitHub repo, go to Settings -> Secrets and variables -> Actions -> Variables -> New Repository Variable.
 
@@ -1764,13 +1726,13 @@ In your GitHub Action file, add an `env:` key before the `steps:` key to use tha
       NEXT_PUBLIC_API_URL: ${{ vars.API_URL }}
 ```
 
-## Test
+### Test
 
 Commit, push, and verify that the newsfeed works on your deployed frontend.
 
 **TODO** Screenshot of app with newsfeed after cleaning it up
 
-# Wrapping up Deploying Through the AWS Console
+## Wrapping up Deploying Through the AWS Console
 
 We've come a long way!  We've deployed an entire fullstack application to AWS though the console.  Enjoy the moment.  You've earned it.  🎉
 
@@ -1801,11 +1763,13 @@ Pulumi is an especially easy way to get started with IaC as a developer, since i
 
 We're going to set up a second environment for our application, which we'll call Development (or dev).  Much as we did through the console, we'll start by deploying our frontend, setting up frontend CI/CD, then our backend, and then our backend CI/CD.  We'll reuse what we can from prior steps, such as our Route 53 domain and our ACM SSL certificate.
 
-# Install Pulumi
+# Deploy the Frontend with Pulumi
+
+## Install Pulumi
 
 Let's [install Pulumi](https://www.pulumi.com/docs/install/).  You can do so with [Homebrew](https://brew.sh/) with `brew install pulumi/tap/pulumi`.
 
-# Create Infrastructure Repo
+## Create Infrastructure Repo
 
 Create a new infrastructure directory, so that your directory structure looks like this:
 
@@ -1818,19 +1782,19 @@ devops-for-ts
 
 We'll start with one of Pulumi's starter templates to [deploy a static website to AWS](https://www.pulumi.com/templates/static-website/aws/).  In your `/infrastructure` directory, run `pulumi new static-website-aws-typescript`.
 
-## Create Pulumi account
+### Create Pulumi account
 
 While the Pulumi framework is open-source, the Pulumi company offers a SaaS product that will manage your infrastructure state for you.  We'll use Pulumi's free account as our state manager here.  Pulumi lets you store your state elsewhere if you'd need to for security purposes.
 
 Sign up with your GitHub account, or create a new username and password if you wish.
 
-## Follow the Prompts
+### Follow the Prompts
 
 - Set your region to `us-east-1`.
 - Keep the default `dev` stack.  Think of Pulumi [stacks](https://www.pulumi.com/docs/concepts/stack/) as environments.  We'll be using the `dev` stack / environment for the rest of the tutorial.
 - Accept all other defaults.
 
-## Git
+### Git
 
 - Setup a git repo by running `git init`.
 - Create a `.gitignore` for the node modules: `echo "node_modules" > .gitignore`.
@@ -1838,14 +1802,14 @@ Sign up with your GitHub account, or create a new username and password if you w
 - Create a [new GitHub repo](https://github.com/new) for your infrastructure.
 - Follow the instructions to add the git remote and push up.
 
-## Linting and Formatting
+### Linting and Formatting
 
 - Let’s add linting while we’re at it.  [Use my package!](https://www.youtube.com/watch?v=aDTwO0TlwOU) Run `npx lintier`, select Node for your project type, and decline all other options.
 - Then run `npm run lint:fix`.
   - You may find yourself having to add a lot of ignores for eslint.  You can extend the eslint config to turn these rules off.
 - Commit.
 
-## Take a Look at the Code
+### Take a Look at the Code
 
 Let's take a look at the starter code.
 - It's creating an s3 bucket for us and configuring it.
@@ -1871,7 +1835,7 @@ const cdn = new aws.cloudfront.Distribution("cdn", {
 });
   ```
 
-### Asynchronous Outputs and Inputs
+#### Asynchronous Outputs and Inputs
 
 Notice how the *output* of one step, like creating the s3 bucket, is passed as in *input* to the next step, like creating the CloudFront distribution.  This concept of [Outputs and Inputs](https://www.pulumi.com/docs/concepts/inputs-outputs/) is key to how Pulumi works.  It's how we hook our resources up with each other.  And it's what allows Pulumi to infer a dependency graph and determine in which order resources must be created when we run `pulumi up`.
 
@@ -1879,11 +1843,11 @@ Almost everything Pulumi does is asynchronous.  Pulumi needs to use the AWS CLI 
 
 Pulumi [Outputs](https://www.pulumi.com/docs/concepts/inputs-outputs/) are a lot like JavaScript promises: their value isn't known until runtime, so the underlying value cannot be accessed directly.  For example, our s3 bucket has a property of `bucket.arn`, which isn't known until the bucket is created. If you hover this property, you'll see it has the type of `pulumi.Output<string>`.  We can *usually* pass outputs whenever Pulumi is expecting an Input, and we should do so when possible.
 
-### Unwrapping Outputs
+#### Unwrapping Outputs
 
 Sometimes, however, Pulumi is expecting a primitive value like a string.  We can still work with our Output by unwrapping it.  We do so with some Pulumi helper functions.  We can get a reference to the string value of the bucket ARN by calling `pulumi.output(bucket).apply(b => b.arn)`.  This works more or less like `.then` for JavaScript promises.
 
-## Deploy Hello World Page
+### Deploy Hello World Page
 
 Run `pulumi up`, and watch Pulumi do its thing.  It will show you a preview of what it will do, and then ask you to confirm.
 
@@ -1895,17 +1859,17 @@ Run `pulumi up`, and watch Pulumi do its thing.  It will show you a preview of w
 
 Success! 🎉
 
-### Stack Outputs
+#### Stack Outputs
 
 The outputs you see after running `pulumi up`, like `cdnUrl`, are called [Stack Outputs](https://www.pulumi.com/learn/building-with-pulumi/stack-outputs/).  They are the key pieces of information about your infrastructure, and can be used by other programs or other Pulumi stacks.
 
 In order to register a stack output, you must export the variable *from the root index.ts file*.  As you'll see later, if you want stack exports from other files, they must be re-exported from `index.ts`.
 
-# Frontend DNS and SSL
+## Frontend DNS and SSL
 
 Let’s serve the site from a dev subdomain: `https://dev.jss.computer` for me.
 
-## Pulumi Configuration
+### Pulumi Configuration
 
 - Add configuration for our domain and subdomain to our stack.  Run `pulumi config set domain jss.computer && pulumi config set subdomain dev`.
 - Check out `Pulumi.dev.yaml` and you'll see these variables added.  This is where our configuration for our dev stack lives.  You can edit this file directly as well.
@@ -1918,7 +1882,7 @@ const subdomain = config.require("subdomain");
 const domainName = `${subdomain}.${domain}`;
 ```
 
-## Add Domain to CloudFront Distribution
+### Add Domain to CloudFront Distribution
 
 Now add the domain to our our CloudFront distribution:
 
@@ -1928,7 +1892,7 @@ const cdn = new aws.cloudfront.Distribution('cdn', {
   ...
 });
 ```
-## Add Route 53 Record for Subdomain
+### Add Route 53 Record for Subdomain
 
 Let's create a DNS record for our dev subdomain:
 
@@ -1952,7 +1916,7 @@ const record = new aws.route53.Record(domainName, {
 
 Hovering over each key in the config can be your friend.  Here we have two `zoneId` keys, which is a little confusing.  Hovering over them explains that the first is for your Route 53 Hosted Zone, and the second is for your CloudFront distribution.  Thanks, TypeScript!
 
-## Get Existing SSL Certificate
+### Get Existing SSL Certificate
 
 We already created our SSL certificate in ACM, and we set it up to work for all subdomains with the wildcard record.  Let's get a reference to it and use it in our dev CloudFront distribution.
 
@@ -1973,7 +1937,7 @@ export const getExistingCertificate = (domain: string) =>
 
 This function gets the most recent AWS-issue ACM certificate associated with our domain.
 
-### Unwrap the Certificate ARN
+#### Unwrap the Certificate ARN
 
 This function returns a promise (which is a bit unusual, since generally we'll be working with Pulumi Outputs).  Promises, like Outputs, can be unwrapped with `pulumi.output().apply()`.  Let's write another helper function to get the unwrapped ARN from a resource when we need it.  In `src/utils/getARN.ts`, add this helper:
 
@@ -1984,7 +1948,7 @@ export const getARN = (awsThingy: any) =>
 
 You'll notice the `any` here.  The Pulumi type definitions are generally pretty good, but they are a work in progress.  Here, the argument to the `pulumi.output()` function is typed as `any`, so we'll use Pulumi's types.
 
-## Add SSL Certificate to CloudFront
+### Add SSL Certificate to CloudFront
 
 Use the helpers we wrote to add the certificate to the CloudFront distribution.
 
@@ -2000,7 +1964,7 @@ const cdn = new aws.cloudfront.Distribution('cdn', {
   },
 });
 ```
-## Add Stack Output for URL and Deploy
+### Add Stack Output for URL and Deploy
 
 - Export the url.
 ```ts
@@ -2010,11 +1974,11 @@ export const domainURL = `https://${domainName}`;
 - Go to the URL and verify everything works.
 - Commit your code.
 
-# Restrict Public Access to s3
+## Restrict Public Access to s3
 
 As we did in the console, let's turn off public access to the s3 bucket, and setup a Bucket Policy and Origin Access Control to allow CloudFront to access it.
 
-## Public Access Block
+### Public Access Block
 
 Edit the s3 bucket's `BucketPublicAccessBlock` to turn off public access.
 
@@ -2032,7 +1996,7 @@ const publicAccessBlock = new aws.s3.BucketPublicAccessBlock(
 );
 ```
 
-## Add Bucket Policy
+### Add Bucket Policy
 
 Add a helper function to generate the bucket policy JSON in `src/s3/bucketPolicy.ts`
 
@@ -2076,7 +2040,7 @@ Here, we're just translating the existing bucket policy JSON from the console in
   pulumi.interpolate`${bucket.arn}/*`
   ```
 
-### Attach Policy to Bucket
+#### Attach Policy to Bucket
 
 Generate our bucket policy JSON with our helper function, and attach it to the bucket.
 
@@ -2092,7 +2056,7 @@ const attachedBucketPolicy = new aws.s3.BucketPolicy('s3bucketPolicy', {
 });
 ```
 
-## Setup OAC
+### Setup OAC
 
 Create an Origin Access Control to let CloudFront access the non-public bucket.
 
@@ -2126,17 +2090,17 @@ const cdn = new aws.cloudfront.Distribution('cdn', {
 });
 ```
 
-## Deploy
+### Deploy
 
 - Run `pulumi up` and deploy.
 - Verify you can still reach the site through the URL.
 - Commit.
 
-# Add Lambda@Edge Routing
+## Add Lambda@Edge Routing
 
 Next, lets add the Lambda@Edge function to handle the nested routes.
 
-## Add Handler Function
+### Add Handler Function
 
 We'll copy the function we wrote earlier, but add some TypeScript types.
 
@@ -2165,7 +2129,7 @@ const requestRewriterHandler = (
 };
 ```
 
-## Add permissions
+### Add permissions
 
 We need to set up a role for our Edge Lambda with the required permissions.  There are a few moving parts here, some of which were obscured by the console:
 
@@ -2206,7 +2170,7 @@ const rolePolicyAttachment = new aws.iam.RolePolicyAttachment(
 
 Gotta love the enums for the service principals and managed policies!
 
-## Create Lambda
+### Create Lambda
 
 Now, we can create our Lambda function and associate the handler callback we wrote and the role we created.
 
@@ -2229,7 +2193,7 @@ export const requestRewriterLambda = new aws.lambda.CallbackFunction(
 
 We're explicitly setting the region here, overriding any other region that might be set in the YAML config files, because Edge Lambdas must be located in `us-east-1` where CloudFront is housed.
 
-## Attach Function to CloudFront
+### Attach Function to CloudFront
 
 We're now ready to attach the Edge Lambda to our CloudFront distribution.  Recall that we want an [origin request](#origin-vs-viewer-request-triggers) event trigger.  We use the `qualifiedArn`, which includes the Lambda version number.
 
@@ -2248,7 +2212,7 @@ const cdn = new aws.cloudfront.Distribution('cdn', {
 });
 ```
 
-## Deploy and Test
+### Deploy and Test
 
 Run `pulumi up` and test.  You can test by going to `/index` and you should see the `index.html` file.
 
@@ -2256,7 +2220,7 @@ Don't forget to commit after you have successfully run `pulumi up`!
 
 If you'd like to learn a bit more about Lambda@Edge with Pulumi, check out this [video](https://www.youtube.com/watch?v=ZWegAYQ0uwo&ab_channel=PulumiTV) and [repo](https://github.com/pulumi/get.pulumi.com/blob/master/infrastructure/requestRewriter.ts).
 
-# A Note on Pulumi Refresh
+## A Note on Pulumi Refresh
 
 We've been making a lot of changes to our infrastructure code and repeatedly running `pulumi up`.  I found that Pulumi's state can get out of sync with the state of our cloud resources with repeated edits like these.
 
@@ -2268,11 +2232,11 @@ Most resources we create with Pulumi have a [`name` property](https://www.pulumi
 
 Unlike many other changes to resources, Pulumi treats changes to the name property as requests to delete the old resource and create a brand new one.  This can be useful if you find yourself stuck in a bad state after lots of edits to your resources.
 
-# Dev Frontend CI/CD
+## Dev Frontend CI/CD
 
 Let's get our pipeline set up so we can get our actual code deployed.
 
-## Delete Bucket Sync
+### Delete Bucket Sync
 
 Delete the synced folder for our s3 bucket, to stop uploading files to the bucket every time we run `pulumi up`.  We'll use our git repo and pipeline to manage uploading new files going forward.
 
@@ -2285,7 +2249,7 @@ const bucketFolder = new synced_folder.S3BucketFolder("bucket-folder", {
 });
 ```
 
-## Create Pipeline User
+### Create Pipeline User
 
 We need to create a pipeline user with the correct permissions to delete the files in the dev bucket and upload new files, as well as invalidate our dev CloudFront distribution.
 
@@ -2334,7 +2298,7 @@ Here, we:
 - attach the policy we created to the user,
 - return the user so we can reference it later when we update the bucket policy.
 
-## Update Bucket Policy
+### Update Bucket Policy
 
 In `index.ts`, create the user, and pass it into the bucket policy creation function.
 
@@ -2379,11 +2343,11 @@ export const createBucketPolicyDocument = ({
 
 Run `pulumi up` to deploy these changes, and commit.
 
-## Setup GitHub Actions Environments
+### Setup GitHub Actions Environments
 
 Let's set up [environments ](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment) for our GitHub Actions in our frontend repository to keep our secrets separate.
 
-### Setup Production
+#### Setup Production
 
 - Create a production environment and move the existing secrets to it.
 - Settings -> Environmets -> New Environment.
@@ -2394,7 +2358,7 @@ Let's set up [environments ](https://docs.github.com/en/actions/deployment/targe
 - Add the `API_URL` under environment variables, since it's not secret.
 - Delete the old secrets and environment variables that aren't associated with this environment.
 
-### Setup Dev
+#### Setup Dev
 
 Follow the same steps as above to create a dev environment associated with the `dev` branch.
 
@@ -2402,7 +2366,7 @@ Follow the same steps as above to create a dev environment associated with the `
 - Add the remaining secrets, `BUCKET_NAME` and `DISTRIBUTION_ID`.  Follow the steps [here](#add-secrets-to-github-repo) to get them for the dev environment.
 - For the `API_URL`, you can set it to `https://api-dev.<your domain>`.  It won't work yet.
 
-## Extract Reusable Workflow
+### Extract Reusable Workflow
 
 Now we need to update our GitHub Actions workflows to use the correct environment variables.  We'll do this by extracting the shared logic to a [reusable workflow](https://docs.github.com/en/actions/using-workflows/reusing-workflows).
 
@@ -2466,7 +2430,7 @@ We designate this a reusable workflow with the `on: workflow_call:` block.  We r
 
 From then on, the workflow looks the same as before.  We're able to access secrets and environment variables from the correct environment.
 
-## Setup Calling Workflows
+### Setup Calling Workflows
 
 Next, create the calling workflows, `.github/workflows/dev.yml` and .`github/workflows/production.yml`.
 
@@ -2501,7 +2465,7 @@ For security purposes, you also must also add `secrets: inherit` to pass the act
 
 The production workflow is identical, except the `main` branch and the `production` environment are referenced.
 
-## Show Current Environment on Frontend
+### Show Current Environment on Frontend
 
 Just for fun, and to verify we're in the correct environment, let's display the current environment on the frontend.  We already added a reference in the reusable workflow: `NEXT_PUBLIC_ENV: ${{ inputs.environment}}`.
 
@@ -2509,7 +2473,7 @@ Just for fun, and to verify we're in the correct environment, let's display the 
 - In `src/app/page.tsx`, add `<h2>we are in {process.env.NEXT_PUBLIC_ENV}!</h2>`.
 - Verify locally and commit.
 
-## Push Your Code and Test
+### Push Your Code and Test
 
 Push your code up on your `dev` branch, and verify that the action runs and succeeds.
 
@@ -2518,29 +2482,31 @@ Push your code up on your `dev` branch, and verify that the action runs and succ
 - Verify that the production GitHub Action runs and succeeds.
 - Go to your production frontend and verify that it works and that you see the correct environment displayed.
 
-### Update error page
+#### Update error page
 
 Now that we've got our actual code deployed, we need to reference the correct error page, `404.html`.  Run `pulumi config set errorDocument 404.html`, then `pulumi up`, then confirm that the error page works, then commit your infrastructure code!
 
-# Wrapping up Pulumi Frontend Code
+## Wrapping up Pulumi Frontend Code
 
 We've successfully deployed our second frontend environment with Pulumi 🎉.  Onwards to the backend!
 
-# Pulumi Backend Setup
+# Deploy the Backend with Pulumi
 
-## Checkout the Pulumi ECS Starter
+## Pulumi Backend Setup
+
+### Checkout the Pulumi ECS Starter
 
 In a new directory, let's install Pulumi's [ECS starter template](https://www.pulumi.com/templates/container-service/aws/) and take a look.  Run `pulumi new container-aws-typescript`.  You can also take a look at this [Fargate tutorial](https://www.pulumi.com/registry/packages/aws/how-to-guides/ecs-fargate/).
 
 We'll start copying over code piece-by-piece to our repo.
 
-## Create a Backend Function
+### Create a Backend Function
 
 Let's start splitting out our code for readability.  In your infrastructure repo at `src/backend/backend.ts`, create a function called `createBackend()` to wrap our code.  Then call this function in `index.ts`.
 
 (Pulumi does have a concept of [Component Resources](https://www.pulumi.com/docs/concepts/resources/components/), which are custom classes that wrap groups of resources for reusability.  However, you have to [manually pass `this`](https://www.pulumi.com/docs/concepts/resources/components/#creating-child-resources) to each child resource to make this work.  Here, we'll accomplish something similar with a function without manually managing `this`.)
 
-## Setup ECR Repo
+### Setup ECR Repo
 
 Let's start with setting up the ECR repo.  In your `createBackend` function, add:
 
@@ -2579,15 +2545,15 @@ export const { repoName } = createBackend();
 
 Run `pulumi up`, commit, and note the repoName for the next step.
 
-## Push Image to Repo
+### Push Image to Repo
 
 Follow the [instructions](#push-your-image) from earlier to push the Strapi image from the command line using your admin credentials.  Use the outputted repoName from the last step.
 
-# Setup Secrets Manager
+## Setup Secrets Manager
 
 Pulumi can [encrypt secrets](https://www.pulumi.com/learn/building-with-pulumi/secrets/), which allows you to commit them into your infrastructure repository.  But let's do this the old-fashioned (ish) way, with a gitignored secrets file.
 
-## Create secrets file
+### Create secrets file
 
 In `src/secretsManager/backendSecrets.ts`, export an object containing your Strapi secrets from your `.env`.  We'll loop over this object when setting up our task definition.  It should look like this:
 
@@ -2605,7 +2571,7 @@ export const BACKEND_SECRETS: { [key: string]: string } = {
 ```
 Add `backendSecrets.ts` to your `.gitignore` file!
 
-## Create secrets manager
+### Create secrets manager
 
 Add these lines in the `createBackend` function.
 
@@ -2620,11 +2586,11 @@ const secretVersion = new aws.secretsmanager.SecretVersion('api-secrets-version'
 
 Run `pulumi up` and commit.
 
-# Create ECS Service
+## Create ECS Service
 
 Now for the meat of the backend.  We'll create a Cluster, Task Definition, Load Balancer, Security Groups, Route 53 record, and ECS Service.
 
-## Create Cluster
+### Create Cluster
 
 Let's create a Fargate cluster.
 
@@ -2635,9 +2601,9 @@ Let's create a Fargate cluster.
 
 Easy-peasy.
 
-## Create Task Definition
+### Create Task Definition
 
-### Reference latest image
+#### Reference latest image
 
 First lets get a reference to the latest image in our ECR repository.
 
@@ -2652,7 +2618,7 @@ Note the name of the `getImageOutput()` function.  There' also a `getImage()` fu
 
 You'll see these two function signatures a lot in Pulumi, so make sure you're using the right one.
 
-### Add Task Definition
+#### Add Task Definition
 
 Next, let's create our task definition.
 
@@ -2702,7 +2668,7 @@ config:
   api:memory: 512
 ```
 
-### Allow Task Execution Role to access Secrets
+#### Allow Task Execution Role to access Secrets
 
 Next, let's allow our ECS service's Task Execution Role, which Pulumi creates along with the Task Definition, to access the secrets in secrets manager.
 
@@ -2729,7 +2695,7 @@ const rpaSecrets = new aws.iam.RolePolicyAttachment('rpa-secrets', {
 
 We're using the pattern we've seen before here of creating a policy document, turning the document into a Policy in AWS, and attaching that Policy to a Role (here, our Task Execution Role).
 
-## Create Load Balancer
+### Create Load Balancer
 
 Next up, let's create a Load Balancer to add to our Service.
 
@@ -2775,7 +2741,7 @@ Next up, let's create a Load Balancer to add to our Service.
   - We're not passing egress rules, so we're getting the default allowing all egress.
 - We're creating a target group on port 1337 for our Strapi app, and configuring our healthcheck.
 
-## Create ECS Service Security Group
+### Create ECS Service Security Group
 
 Let's create a Security Group for our ECS Service allowing ingress on port 1337 to our Strapi App from the Load Balancer.
 
@@ -2814,7 +2780,7 @@ Let's create a Security Group for our ECS Service allowing ingress on port 1337 
 - We're creating a Security Group allowing ingress on port 1337 from the Load Balancer's default security group.  (Note the unwrapping required here for this nested resources.)
 - We're allowing all outgoing traffic explicitly here.
 
-## Create ECS Service
+### Create ECS Service
 
 We've got a Cluster, Task Definition, Load Balancer, and Security Groups, so now we can create our ECS Service.
 
@@ -2846,7 +2812,7 @@ We've got a Cluster, Task Definition, Load Balancer, and Security Groups, so now
 
 Note the commented line.  You can uncomment it to turn the ECS Service off to avoid costs by setting the desired Task count to 0.
 
-# Add Backend DNS
+## Add Backend DNS
 
 ```ts
 const domain = config.get('domain') || 'jss.computer';
@@ -2872,7 +2838,7 @@ const record = new aws.route53.Record(domainName, {
 - We're getting a reference to our existing Route 53 domain.
 - We're adding a new record for the `api-dev` subdomain, and pointing it to our load balancer.
 
-# Add Stack Outputs
+## Add Stack Outputs
 
 We're going to need several stack outputs to setup our GitHub Action for dev.  Return the following variables from the `createBackend()` function:
 
@@ -2891,17 +2857,17 @@ And reexport them in `index.ts`.
 export const { repoName, serviceName, clusterName, containerName } = createBackend();
 ```
 
-# Deploy Dev Backend Infrastructure
+## Deploy Dev Backend Infrastructure
 
 Run `pulumi up` and let's verify that our infrastructure works!  Go to your api subdomain and verify that you can login at `/admin` with the same credentials as before.  Checkout your frontend and make sure you see the newsfeed.
 
 **TODO** Will this work in a single `pulumi up` or do you need the image to be in the repo first before creating the task definition?  Do you need conditional logic to handle the first/subsequent deploys?
 
-# Add Dev Backend CI/CD
+## Add Dev Backend CI/CD
 
 Our last task with Pulumi is to setup our backend CI/CD pipeline.
 
-## Create Backend Pipeline User
+### Create Backend Pipeline User
 
 In `src/iam/backendPipelineUser.ts`, add this function:
 
@@ -2974,7 +2940,7 @@ Run `pulumi up` to create the user.  Follow the [steps above](#create-access-key
 
 **TODO**  Narrow permissions here as well.  Doesn't need assumeRole.  https://github.com/aws-actions/amazon-ecs-deploy-task-definition/tree/df9643053eda01f169e64a0e60233aacca83799a/#permissions
 
-## Setup Environments and Add Secrets to GitHub
+### Setup Environments and Add Secrets to GitHub
 
 Follow the [steps above](#setup-github-actions-environments) to setup a Production environment for the `main` branch and a dev environment for the `dev` brach.
 
@@ -2984,7 +2950,7 @@ For dev, use the stack outputs for the `ECR_REPOSITORY`, `ECS_SERVICE`, `ECS_CLU
 
 For prod, rename the task definition to `.aws/task-definition-prod.json`, and set that path as the `ECS_TASK_DEFINITION`.  For dev, it will be `.aws/task-definition-dev.json`.
 
-## Setup Reusable Workflow
+### Setup Reusable Workflow
 
 Checkout a `dev` branch to make changes in your backend repo.
 
@@ -3085,13 +3051,13 @@ jobs:
           wait-for-service-stability: true
 ```
 
-## Commit Dev Task Definition
+### Commit Dev Task Definition
 
 Next, we need to commit the dev Task Definition JSON to `.aws/task-definition-dev.json` in our backend repo.
 
 You can get it from the console.  Or you can run `aws ecs list-task-definitions` to get the ARN, then run `aws ecs describe-task-definition --task-definition <ARN HERE> | jq '.taskDefinition' | pbcopy` to copy what you need to the clipboard.  (You'd need the `jq` package for parsing JSON, which you can get [here](https://formulae.brew.sh/formula/jq).)
 
-## Push and Test
+### Push and Test
 
 Commit and push your `dev` branch, and verify that the action runs and succeeds.  You could also add a newsfeed item locally in Strapi and commit that to verify that the pipeline succeeds.
 
