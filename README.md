@@ -192,7 +192,6 @@ This repo contains the Pulumi infrastructure code, and the course materials are 
 - [Conclusion](#conclusion)
   - [Next Steps](#next-steps)
 
-
 # Introduction
 
 Welcome to DevOps for TypeScript Developers!  The goal of this tutorial is to gain practical DevOps experience by building and deploying a full-stack web app on Amazon Web Services (AWS), using TypeScript to create both our application and our infrastructure.
@@ -225,11 +224,19 @@ The frontend will start out as a simple hello world page that shows the current 
 
 The frontend will display items from a "news feed."  On the client, the app will make a call to our Strapi backend, which will serve the latest news items.  Strapi provides an admin dashboard allowing us to add more items and see them reflected on our frontend in real time.
 
+The frontend I built with Next is available at https://jss.computer.  The Strapi backend for the news items is available at https://api.jss.computer/api/news-items.
+
+Here's a quick demo of how it works.
+
+![quick app demo](assets/jss-computer-quick-demo.gif)
+
 ## Architecture
 
-![architecture diagram](assets/arch-diagram-1.png)
+
 
 Our application might not look like much, but there's a lot of complexity involved in getting it deployed to the cloud.  At a high level, here are all the moving pieces:
+
+![architecture diagram](assets/arch-diagram-1.png)
 
 ### Frontend
 
