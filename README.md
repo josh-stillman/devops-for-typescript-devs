@@ -669,7 +669,7 @@ Why is it happening? If you go to https://jss.computer/foo, CloudFront is lookin
 
 [AWS Lambda](https://aws.amazon.com/lambda/) is a service that allows us to run serverless functions in JavaScript and other languages.  [Lambda@Edge](https://aws.amazon.com/lambda/edge/) allows you to run them on CloudFront's edge servers to do things like intercept and rewrite requests.  If we were running our own servers, tasks like this would typically be handled by a [reverse proxy](https://www.nginx.com/resources/glossary/reverse-proxy-server/#:~:text=A%20reverse%20proxy%20server%20is,traffic%20between%20clients%20and%20servers.) like NGINX or Caddy.  But with CloudFront, these tasks are handled with Lambda@Edge.
 
-To fix this our routing problem, we'll create a Lambda@Edge function that will intercept each CloudFront request.  If the request is for a path *without* a file extension, we'll append `.html` at the end when sending the request on to our s3 bucket.  This allows us to correctly serve up these files while keeping the routes the user sees in their browser looking clean ([other solutions](https://stackoverflow.com/questions/63591544/next-js-how-to-make-links-work-with-exported-sites-when-hosted-on-aws-cloudfron) to this problem weren't as nice looking).
+To fix our routing problem, we'll create a Lambda@Edge function that will intercept each CloudFront request.  If the request is for a path *without* a file extension, we'll append `.html` at the end when sending the request on to our s3 bucket.  This allows us to correctly serve up these files while keeping the routes the user sees in their browser looking clean ([other solutions](https://stackoverflow.com/questions/63591544/next-js-how-to-make-links-work-with-exported-sites-when-hosted-on-aws-cloudfron) to this problem weren't as nice looking).
 
 ### Create Function
 
@@ -832,7 +832,6 @@ AWS's [permissions evaluation model](https://docs.aws.amazon.com/IAM/latest/User
     },
     "Action": [
         "s3:PutObject",
-        "s3:GetObject",
         "s3:ListBucket",
         "s3:DeleteObject"
     ],
@@ -1159,7 +1158,7 @@ While the ECS Service can be stopped without deleting it, you'd have to delete t
 
 ![infrastructure requirements](assets/task-def-infrastructure.png)
 
-What are these roles?  The [Task Execution Role](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_execution_IAM_role.html) is the role assumed by the ECS Service in starting the container.  It needs permissions to do things like access ECR to get your image and access Secrets Manager to get your environment variables.  The [Task Role](https://towardsthecloud.com/amazon-ecs-task-role-vs-execution-role), on the other hand, is the role assumed by the running task, and is used for things like uploading files to s3 buckets or accessing other AWS services.
+What are these roles?  The [Task Execution Role](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_execution_IAM_role.html) is the role assumed by the ECS Service in starting the container.  It needs permissions to do things like access ECR to get your image and access Secrets Manager to get your environment variables.  The [Task Role](https://towardsthecloud.com/amazon-ecs-task-role-vs-execution-role), on the other hand, is the role assumed by the running Task, and is used for things like uploading files to s3 buckets or accessing other AWS services.
 
 #### Container Definition
 
@@ -1525,8 +1524,7 @@ env:
   ECS_SERVICE: code-along-api-service-2           # set this to your Amazon ECS service name
   ECS_CLUSTER: code-along-api                     # set this to your Amazon ECS cluster name
   ECS_TASK_DEFINITION: .aws/task-definition.json  # set this to the path to your Amazon ECS task definition file, e.g. .aws/task-definition.json
-  CONTAINER_NAME: code-along-api                  # set this to the name of the container in the
-                                                  # containerDefinitions section of your task definition
+  CONTAINER_NAME: code-along-api                  # set this to the name of the container in the  containerDefinitions section of your task definition
   PUBLIC_URL: https://api.jss.computer
 
 jobs:
@@ -1730,7 +1728,7 @@ In your GitHub Action file, add an `env:` key before the `steps:` key to use tha
 
 Commit, push, and verify that the newsfeed works on your deployed frontend.
 
-**TODO** Screenshot of app with newsfeed after cleaning it up
+![app demo](assets/jss-computer-quick-demo.gif)
 
 ## Wrapping up Deploying Through the AWS Console
 
@@ -1839,7 +1837,7 @@ const cdn = new aws.cloudfront.Distribution("cdn", {
 
 Notice how the *output* of one step, like creating the s3 bucket, is passed as in *input* to the next step, like creating the CloudFront distribution.  This concept of [Outputs and Inputs](https://www.pulumi.com/docs/concepts/inputs-outputs/) is key to how Pulumi works.  It's how we hook our resources up with each other.  And it's what allows Pulumi to infer a dependency graph and determine in which order resources must be created when we run `pulumi up`.
 
-Almost everything Pulumi does is asynchronous.  Pulumi needs to use the AWS CLI to create and modify cloud resources, and has to wait for those API calls to settle.  Afterwards, other Pulumi resources then can access information about the newly created resources.  It manages these async calls through Outputs.
+Almost everything Pulumi does is asynchronous.  Pulumi needs to use the AWS CLI to create and modify cloud resources, and has to wait for those API calls to settle.  Afterwards, other Pulumi resources can then access information about the newly created resources.  It manages these async calls through Outputs.
 
 Pulumi [Outputs](https://www.pulumi.com/docs/concepts/inputs-outputs/) are a lot like JavaScript promises: their value isn't known until runtime, so the underlying value cannot be accessed directly.  For example, our s3 bucket has a property of `bucket.arn`, which isn't known until the bucket is created. If you hover this property, you'll see it has the type of `pulumi.Output<string>`.  We can *usually* pass outputs whenever Pulumi is expecting an Input, and we should do so when possible.
 
