@@ -40,6 +40,7 @@ This repo contains the Pulumi infrastructure code, and the course materials are 
     - [Create CloudFront Distribution](#create-cloudfront-distribution)
     - [Custom Error Response](#custom-error-response)
     - [Update Bucket Policy](#update-bucket-policy)
+    - [Point your domain to the CloudFront distribution](#point-your-domain-to-the-cloudfront-distribution)
     - [Double-check behavior](#double-check-behavior)
     - [Seal off your bucket](#seal-off-your-bucket)
   - [Setup routing with Lambda@Edge Function](#setup-routing-with-lambdaedge-function)
@@ -163,6 +164,9 @@ The course is more practical than theoretical. These are deep topics, but they w
 ## Why Learn DevOps as a Developer?
 
 If we want our applications to reach our users, we have to deploy them!  It's a fact of life.  There are services with an amazing developer experience that will let you do this with very little work, like Netlify, Vercel, or Heroku (often called Platform as a Service or PaaS services). You click a few buttons, link up your GitHub repo, and the service takes care of the rest.
+
+> ![Netlify config](assets/netlify-config.png)
+> Netlify... So Easy!
 
 These services are great, but they come with big tradeoffs.  You give up a tremendous amount of control to the platform.  For complex applications, you often need that control to accomplish your goals.  For example, I built a mailing list sign-up website with a serverless backend on Netlify a few years ago and very quickly ran up against the limitations imposed by the platform.  It was easier to get up and running, but harder in the long run.
 
@@ -639,6 +643,10 @@ Some things to note here:
   - CloudFront needs to be able to list the objects in the bucket to determine whether to serve the 404 page.
 - The principal is CloudFront.
 - We can limit *which* CloudFront distribution has access with the condition block where we specify the distribution's ARN.  Copy it from your distribution's console page.
+
+### Point your domain to the CloudFront distribution
+
+Go back to Route 53, delete the old A record pointing to the s3 Bucket, and create a new A record pointing to your CloudFront distribution.  Follow the steps [above](#setup-route-53-dns) but alias the record to your CloudFront distribution instead.
 
 ### Double-check behavior
 
